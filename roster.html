@@ -81,6 +81,109 @@
       color: var(--text-muted);
     }
 
+    .view-toggle-select {
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-hard);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 9px 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    /* ---- Player card grouped view ---- */
+
+    .player-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .player-card {
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .player-card.is-fully-absent {
+      opacity: 0.5;
+    }
+
+    .player-card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    .player-card-name {
+      font-family: var(--font-display);
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+
+    .player-card-char-count {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .player-card-char-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px;
+      background: var(--bg-raised);
+      border-radius: var(--radius-sm);
+      flex-wrap: wrap;
+    }
+
+    .player-card-char-row.char-is-absent {
+      opacity: 0.55;
+    }
+
+    .player-card-char-row img.spec-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid var(--border-hard);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .player-card-char-info {
+      flex: 1 1 100%;
+      min-width: 0;
+    }
+
+    .player-card-char-name {
+      font-weight: 600;
+      font-size: 13.5px;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .player-card-char-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .player-card-char-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .player-card-char-tags {
+      display: flex;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
     /* ---- Add/Edit modal ---- */
 
     .modal-backdrop {
@@ -103,7 +206,6 @@
       max-width: 460px;
       max-height: 90vh;
       overflow-y: auto;
-      overflow-x: hidden;
     }
 
     .modal-card h2 {
@@ -114,7 +216,7 @@
     .form-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: var(--space-sm);
+      gap: var(--space-md);
     }
 
     .checkbox-row {
@@ -159,7 +261,11 @@
             <h2 class="panel-title" style="margin-bottom:4px;">Roster</h2>
             <span class="count" id="roster-count">Loading…</span>
           </div>
-          <div class="flex gap-sm">
+          <div class="flex gap-sm items-center">
+            <select class="view-toggle-select" id="view-toggle-select">
+              <option value="flat">View: List</option>
+              <option value="grouped">View: By Player</option>
+            </select>
             <button class="btn" id="refresh-btn">Refresh</button>
             <button class="btn btn-primary" id="add-char-btn">+ Add Character</button>
           </div>
