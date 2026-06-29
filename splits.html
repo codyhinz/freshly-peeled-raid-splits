@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Build Splits — Freshly Peeled</title>
+  <link rel="icon" href="assets/img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .splits-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: var(--space-lg);
+      align-items: start;
+    }
+
+    /* ---- Unassigned pool sidebar ---- */
+
+    .pool-panel {
+      position: sticky;
+      top: 84px;
+      max-height: calc(100vh - 110px);
+      overflow-y: auto;
+    }
+
+    .pool-search {
+      margin-bottom: var(--space-sm);
+    }
+
+    .pool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .player-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-hard);
+      border-radius: var(--radius-sm);
+      cursor: grab;
+      font-size: 13.5px;
+    }
+
+    .player-chip:active {
+      cursor: grabbing;
+    }
+
+    .player-chip.dragging {
+      opacity: 0.4;
+    }
+
+    .player-chip img.spec-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .player-chip .chip-name {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .player-chip.chip-absent {
+      opacity: 0.5;
+    }
+
+    .player-chip .chip-tags {
+      margin-left: auto;
+      display: flex;
+      gap: 3px;
+    }
+
+    .chip-mini-tag {
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+
+    /* ---- Split tabs ---- */
+
+    .split-tabs {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .split-tab-btn {
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hard);
+      background: var(--bg-panel-2);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .split-tab-btn.active {
+      background: var(--accent-gradient);
+      color: #1a0d08;
+      border-color: transparent;
+    }
+
+    .split-summary-line {
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      margin-bottom: var(--space-md);
+    }
+
+    /* ---- Validation panel ---- */
+
+    .validation-panel {
+      margin-bottom: var(--space-md);
+    }
+
+    .validation-panel .alert {
+      margin-bottom: 6px;
+    }
+
+    .validation-panel .alert button.suggest-btn {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    /* ---- Groups grid ---- */
+
+    .groups-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-md);
+    }
+
+    @media (max-width: 1200px) {
+      .groups-grid { grid-template-columns: repeat(2, 1fr); }
+      .splits-layout { grid-template-columns: 1fr; }
+      .pool-panel { position: static; max-height: none; }
+    }
+
+    .group-box {
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm);
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .group-box.drag-over {
+      border-color: var(--accent-orange);
+      box-shadow: 0 0 0 1px var(--accent-orange) inset;
+    }
+
+    .group-header {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .group-slots {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .group-slot {
+      min-height: 34px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed var(--border-hard);
+      display: flex;
+      align-items: center;
+    }
+
+    .group-slot.filled {
+      border-style: solid;
+      background: var(--bg-raised);
+    }
+
+    .group-slot.drag-over {
+      border-color: var(--accent-orange);
+      background: rgba(240, 90, 55, 0.1);
+    }
+
+    .group-slot .player-chip {
+      width: 100%;
+      border: none;
+      background: transparent;
+      padding: 5px 8px;
+    }
+
+    .slot-empty-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding-left: 8px;
+    }
+
+    .group-buffs-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-soft);
+      min-height: 24px;
+    }
+
+    .buff-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-hard);
+    }
+
+    .buff-icon-fallback {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-hard);
+      background: var(--bg-raised);
+      font-size: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      text-align: center;
+      overflow: hidden;
+      padding: 1px;
+    }
+
+    .pilot-banner {
+      font-size: 12px;
+      background: rgba(230, 179, 74, 0.12);
+      color: var(--warn);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-sm);
+      display: none;
+    }
+
+    .pilot-banner.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <img src="assets/img/logo.png" alt="Freshly Peeled">
+        <span class="brand-title"><span class="accent">Freshly Peeled</span></span>
+      </div>
+      <nav class="main-nav">
+        <a href="roster.html">Roster</a>
+        <a href="splits.html" class="active">Build Splits</a>
+        <a href="#" id="logout-link">Log out</a>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <div class="flex justify-between items-center" style="margin-bottom: var(--space-md);">
+        <div>
+          <h2 class="panel-title" style="margin-bottom:2px;">Build Splits</h2>
+          <span class="text-muted text-sm" id="last-saved-note">Not saved yet</span>
+        </div>
+        <div class="flex gap-sm">
+          <label class="toggle text-sm">
+            <input type="checkbox" id="pilot-mode-toggle">
+            Pilot mode (allow duplicate character)
+          </label>
+          <button class="btn" id="reload-btn">Reload</button>
+          <button class="btn btn-primary" id="save-splits-btn">Save Splits</button>
+        </div>
+      </div>
+
+      <div class="pilot-banner" id="pilot-banner">
+        Pilot mode is ON — duplicate character warnings are suppressed for this drag.
+      </div>
+
+      <div class="splits-layout">
+
+        <!-- Unassigned player pool -->
+        <aside class="pool-panel panel">
+          <h3 class="panel-title" style="font-size:15px;">Unassigned</h3>
+          <input type="text" class="pool-search" id="pool-search" placeholder="Filter by name…">
+          <div class="pool-list" id="pool-list">
+            <!-- populated by splits.js -->
+          </div>
+        </aside>
+
+        <!-- Main split area -->
+        <section>
+          <div class="split-tabs" id="split-tabs">
+            <!-- populated by splits.js -->
+          </div>
+
+          <div class="split-summary-line" id="split-summary-line"></div>
+
+          <div class="validation-panel" id="validation-panel">
+            <!-- populated by splits.js -->
+          </div>
+
+          <div class="groups-grid" id="groups-grid">
+            <!-- populated by splits.js -->
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="js/constants.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="js/splits.js"></script>
+</body>
+</html>

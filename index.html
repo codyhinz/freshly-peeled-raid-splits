@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Freshly Peeled — Raid Splits</title>
+  <link rel="icon" href="assets/img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg);
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .login-logo {
+      width: 84px;
+      height: 84px;
+      margin: 0 auto var(--space-md);
+      display: block;
+    }
+
+    .login-card h1 {
+      font-size: 26px;
+      margin-bottom: var(--space-xs);
+    }
+
+    .login-card p.subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: var(--space-lg);
+    }
+
+    .login-form {
+      text-align: left;
+    }
+
+    .login-help {
+      margin-top: var(--space-md);
+      font-size: 12.5px;
+      color: var(--text-muted);
+      text-align: left;
+    }
+
+    .login-help summary {
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-wrap">
+    <div class="login-card panel">
+      <img class="login-logo" src="assets/img/logo.png" alt="Freshly Peeled guild logo">
+      <h1><span class="brand-title"><span class="accent">Freshly Peeled</span></span></h1>
+      <p class="subtitle">Raid splits tool</p>
+
+      <form class="login-form" id="login-form">
+        <div class="field">
+          <label for="script-url">Backend URL</label>
+          <input type="url" id="script-url" placeholder="https://script.google.com/macros/s/.../exec" required>
+        </div>
+
+        <div class="field">
+          <label for="password">Access Password</label>
+          <input type="password" id="password" placeholder="Enter the shared password" required>
+        </div>
+
+        <div id="login-alert"></div>
+
+        <button type="submit" class="btn btn-primary w-full" id="login-submit">Enter</button>
+      </form>
+
+      <details class="login-help">
+        <summary>Where do I get the Backend URL?</summary>
+        <p>
+          This is the Web App URL generated when you deployed the Google
+          Apps Script (see <code>SETUP_GUIDE.md</code>). It looks like
+          <code>https://script.google.com/macros/s/AKfycb.../exec</code>.
+          Once entered, your browser remembers it for this session only.
+        </p>
+      </details>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

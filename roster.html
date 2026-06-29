@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roster — Freshly Peeled</title>
+  <link rel="icon" href="assets/img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .roster-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    .roster-toolbar .count {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    table.roster-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    table.roster-table th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border-soft);
+      white-space: nowrap;
+    }
+
+    table.roster-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: middle;
+    }
+
+    table.roster-table tr.is-absent {
+      opacity: 0.55;
+    }
+
+    .char-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .char-cell img.spec-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid var(--border-hard);
+    }
+
+    .char-name {
+      font-weight: 600;
+    }
+
+    .player-name {
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: var(--space-xl);
+      color: var(--text-muted);
+    }
+
+    /* ---- Add/Edit modal ---- */
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: var(--space-md);
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 460px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-card h2 {
+      font-size: 20px;
+      margin-bottom: var(--space-md);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-md);
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: var(--space-lg);
+      margin: var(--space-md) 0;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+    }
+
+    .dst-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: -4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <img src="assets/img/logo.png" alt="Freshly Peeled">
+        <span class="brand-title"><span class="accent">Freshly Peeled</span></span>
+      </div>
+      <nav class="main-nav">
+        <a href="roster.html" class="active">Roster</a>
+        <a href="splits.html">Build Splits</a>
+        <a href="#" id="logout-link">Log out</a>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <div class="panel">
+        <div class="roster-toolbar">
+          <div>
+            <h2 class="panel-title" style="margin-bottom:4px;">Roster</h2>
+            <span class="count" id="roster-count">Loading…</span>
+          </div>
+          <div class="flex gap-sm">
+            <button class="btn" id="refresh-btn">Refresh</button>
+            <button class="btn btn-primary" id="add-char-btn">+ Add Character</button>
+          </div>
+        </div>
+
+        <div id="roster-alert"></div>
+
+        <div id="roster-table-wrap">
+          <!-- table injected by roster.js -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add / Edit Character Modal -->
+  <div class="modal-backdrop" id="char-modal">
+    <div class="modal-card panel">
+      <h2 id="modal-title">Add Character</h2>
+      <form id="char-form">
+        <input type="hidden" id="char-id">
+
+        <div class="form-row">
+          <div class="field">
+            <label for="f-player-name">Player Name</label>
+            <input type="text" id="f-player-name" required>
+          </div>
+          <div class="field">
+            <label for="f-char-name">Character Name</label>
+            <input type="text" id="f-char-name" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="f-class">Class</label>
+            <select id="f-class" required></select>
+          </div>
+          <div class="field">
+            <label for="f-spec">Spec</label>
+            <select id="f-spec" required></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="f-role">Role</label>
+            <select id="f-role" required></select>
+          </div>
+          <div class="field">
+            <label for="f-offspec-role">Offspec Role (optional)</label>
+            <select id="f-offspec-role">
+              <option value="">None</option>
+              <option value="tank">Tank</option>
+              <option value="healer">Healer</option>
+              <option value="dps">DPS</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-main-alt">Main or Alt</label>
+          <select id="f-main-alt">
+            <option value="Main">Main</option>
+            <option value="Alt">Alt</option>
+          </select>
+        </div>
+
+        <div class="checkbox-row">
+          <label class="toggle">
+            <input type="checkbox" id="f-dst">
+            DST Eligible
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="f-absent">
+            Absent
+          </label>
+        </div>
+        <p class="dst-note" id="dst-alt-note" style="display:none;">
+          Alts are never DST eligible — uncheck "Alt" above to allow this.
+        </p>
+
+        <div id="modal-alert"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="modal-save">Save Character</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/constants.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/roster.js"></script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+/* =========================================================
+   Freshly Peeled — Raid Splits Tool
+   Shared stylesheet: design tokens + base + components
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Bevan&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Brand palette, pulled from the guild logo gradient ---- */
+  --accent-red:      #f04837;
+  --accent-orange:   #f6923c;
+  --accent-gradient: linear-gradient(135deg, var(--accent-red), var(--accent-orange));
+  --accent-glow:     rgba(240, 90, 55, 0.35);
+
+  /* ---- Neutrals ---- */
+  --bg-base:     #0a0a0b;
+  --bg-panel:    #15161a;
+  --bg-panel-2:  #1c1d23;
+  --bg-raised:   #23242c;
+  --border-soft: #2c2d36;
+  --border-hard: #3a3b46;
+
+  --text-primary:   #f5ece4;
+  --text-secondary: #b7b6c0;
+  --text-muted:     #76757f;
+
+  /* ---- Status colors ---- */
+  --error:   #e6543f;
+  --warn:    #e6b34a;
+  --success: #5ec48a;
+
+  /* ---- Type ---- */
+  --font-display: 'Bevan', 'Georgia', serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* ---- Spacing scale ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+}
+
+/* ---------- Reset & base ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+a {
+  color: var(--accent-orange);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+}
+
+/* Visible keyboard focus throughout */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-orange);
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- Layout shell ---------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.brand img {
+  height: 36px;
+  width: 36px;
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+}
+
+.brand-title .accent {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.main-nav {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.main-nav a {
+  color: var(--text-secondary);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.main-nav a:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.main-nav a.active {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  box-shadow: inset 0 -2px 0 var(--accent-orange);
+}
+
+.app-main {
+  flex: 1;
+  padding: var(--space-lg);
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hard);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.btn:hover {
+  background: var(--border-hard);
+}
+
+.btn-primary {
+  background: var(--accent-gradient);
+  border: none;
+  color: #1a0d08;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-danger {
+  border-color: var(--error);
+  color: var(--error);
+  background: transparent;
+}
+
+.btn-danger:hover {
+  background: rgba(230, 84, 63, 0.12);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ---------- Panels / cards ---------- */
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin-bottom: var(--space-md);
+  color: var(--text-primary);
+}
+
+/* ---------- Class color utility classes ---------- */
+/* Applied to name text so each character reads in its class color,
+   matching the convention every WoW player already recognizes. */
+
+.class-warrior { color: #C79C6E; }
+.class-paladin { color: #F58CBA; }
+.class-hunter  { color: #ABD473; }
+.class-rogue   { color: #FFF569; }
+.class-priest  { color: #FFFFFF; }
+.class-shaman  { color: #0070DE; }
+.class-mage    { color: #69CCF0; }
+.class-warlock { color: #9482C9; }
+.class-druid   { color: #FF7D0A; }
+
+/* ---------- Form elements ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.field input,
+.field select {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-hard);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: var(--accent-orange);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---------- Tags / badges ---------- */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tag-main {
+  background: rgba(94, 196, 138, 0.15);
+  color: var(--success);
+}
+
+.tag-alt {
+  background: rgba(118, 117, 127, 0.2);
+  color: var(--text-secondary);
+}
+
+.tag-dst {
+  background: var(--accent-gradient);
+  color: #1a0d08;
+}
+
+.tag-absent {
+  background: rgba(230, 84, 63, 0.18);
+  color: var(--error);
+}
+
+/* ---------- Alerts / validation messages ---------- */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  margin-bottom: var(--space-sm);
+  border-left: 3px solid transparent;
+}
+
+.alert-error {
+  background: rgba(230, 84, 63, 0.1);
+  border-left-color: var(--error);
+  color: #ffb3a3;
+}
+
+.alert-warn {
+  background: rgba(230, 179, 74, 0.1);
+  border-left-color: var(--warn);
+  color: #f5d896;
+}
+
+.alert-success {
+  background: rgba(94, 196, 138, 0.1);
+  border-left-color: var(--success);
+  color: #a8e8c4;
+}
+
+/* ---------- Utility ---------- */
+
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.text-muted { color: var(--text-muted); }
+.text-sm { font-size: 13px; }
+.w-full { width: 100%; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .main-nav {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .app-main {
+    padding: var(--space-md);
+  }
+}

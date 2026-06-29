@@ -1,0 +1,524 @@
+/**
+ * splits.js
+ *
+ * Drag-and-drop raid split builder. Two splits, each 5 groups of 5.
+ * Dragging onto an occupied slot SWAPS the two characters (the occupant
+ * goes back to wherever the dragged character came from — either the
+ * unassigned pool or another slot).
+ */
+
+(function () {
+  requireLogin();
+
+  // ---------- State ----------
+
+  let roster = [];               // full roster from backend
+  let splitsState = null;        // { "Split A": groups[][], "Split B": groups[][] }
+  let activeSplitKey = RAID_CONFIG.splitNames[0];
+  let pilotMode = false;
+  let poolFilterText = "";
+
+  // Tracks the in-progress drag: where the dragged character came from,
+  // so a drop can either move it or swap it.
+  let dragSource = null; // { type: "pool" } | { type: "slot", splitKey, groupIndex, slotIndex }
+  let draggedCharKey = null; // unique key of the character being dragged
+
+  // ---------- DOM refs ----------
+
+  const poolList = document.getElementById("pool-list");
+  const poolSearch = document.getElementById("pool-search");
+  const splitTabsEl = document.getElementById("split-tabs");
+  const groupsGrid = document.getElementById("groups-grid");
+  const validationPanel = document.getElementById("validation-panel");
+  const splitSummaryLine = document.getElementById("split-summary-line");
+  const lastSavedNote = document.getElementById("last-saved-note");
+  const pilotToggle = document.getElementById("pilot-mode-toggle");
+  const pilotBanner = document.getElementById("pilot-banner");
+
+  // ---------- Init ----------
+
+  document.getElementById("logout-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    clearSession();
+    window.location.href = "index.html";
+  });
+
+  document.getElementById("reload-btn").addEventListener("click", load);
+  document.getElementById("save-splits-btn").addEventListener("click", persistSplits);
+
+  pilotToggle.addEventListener("change", () => {
+    pilotMode = pilotToggle.checked;
+    pilotBanner.classList.toggle("active", pilotMode);
+  });
+
+  poolSearch.addEventListener("input", () => {
+    poolFilterText = poolSearch.value.trim().toLowerCase();
+    renderPool();
+  });
+
+  renderSplitTabs();
+  load();
+
+  // ---------- Data loading ----------
+
+  async function load() {
+    try {
+      const data = await fetchData();
+      roster = data.roster || [];
+      splitsState = normalizeSplitsState(data.splits);
+      lastSavedNote.textContent = data.splits ? "Loaded saved splits" : "No saved splits yet — starting fresh";
+      renderAll();
+    } catch (err) {
+      groupsGrid.innerHTML = `<div class="alert alert-error">Failed to load: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  /**
+   * Build a blank splits structure, or reconcile a loaded one against
+   * the current roster (in case characters were removed/renamed since
+   * the splits were last saved — those slots just become empty rather
+   * than crashing the page).
+   */
+  function normalizeSplitsState(loaded) {
+    const blank = {};
+    RAID_CONFIG.splitNames.forEach((name) => {
+      blank[name] = makeBlankGroups();
+    });
+
+    if (!loaded) return blank;
+
+    RAID_CONFIG.splitNames.forEach((name) => {
+      const loadedGroups = loaded[name];
+      if (!Array.isArray(loadedGroups)) return;
+
+      blank[name] = loadedGroups.map((group) =>
+        (Array.isArray(group) ? group : []).map((slot) => {
+          if (!slot) return null;
+          // Re-link to the live roster entry by CharName so edits made on
+          // the Roster page (spec changes, absent toggle, even who the
+          // PlayerName/pilot is) are reflected here without needing to
+          // re-save splits. Matches by CharName alone since a character
+          // can only have one "true" roster entry at a time.
+          const match = roster.find(
+            (c) => (c.CharName || "").trim().toLowerCase() === (slot.CharName || "").trim().toLowerCase()
+          );
+          return match || slot; // fall back to the stale snapshot if not found
+        }).concat(Array(RAID_CONFIG.playersPerGroup).fill(null)).slice(0, RAID_CONFIG.playersPerGroup)
+      ).concat(makeBlankGroups()).slice(0, RAID_CONFIG.groupsPerSplit);
+    });
+
+    return blank;
+  }
+
+  function makeBlankGroups() {
+    return Array.from({ length: RAID_CONFIG.groupsPerSplit }, () =>
+      Array(RAID_CONFIG.playersPerGroup).fill(null)
+    );
+  }
+
+  // ---------- Character key helper ----------
+  // A character (by CHARACTER NAME) can only physically be in one raid
+  // at a time, regardless of who is piloting it that night. So the key
+  // is CharName alone — NOT PlayerName+CharName — matching the real
+  // constraint: one toon, one seat.
+
+  function charKey(character) {
+    return (character.CharName || "").trim().toLowerCase();
+  }
+
+  /**
+   * Every character currently placed in EITHER split, across all groups.
+   * Used to compute the unassigned pool and to detect duplicates.
+   */
+  function allPlacedCharacters() {
+    const placed = [];
+    RAID_CONFIG.splitNames.forEach((name) => {
+      splitsState[name].forEach((group) => {
+        group.forEach((slot) => {
+          if (slot) placed.push({ ...slot, __splitKey: name });
+        });
+      });
+    });
+    return placed;
+  }
+
+  function getUnassignedPool() {
+    const placedKeys = new Set(allPlacedCharacters().map(charKey));
+    return roster.filter((c) => !placedKeys.has(charKey(c)));
+  }
+
+  // ---------- Rendering: top-level ----------
+
+  function renderAll() {
+    window.__unassignedPool = getUnassignedPool(); // for validation.js suggestions
+    renderPool();
+    renderSplitTabs();
+    renderGroups();
+    renderValidation();
+  }
+
+  function renderSplitTabs() {
+    splitTabsEl.innerHTML = RAID_CONFIG.splitNames
+      .map(
+        (name) => `
+        <button class="split-tab-btn ${name === activeSplitKey ? "active" : ""}" data-split="${name}">
+          ${name}
+        </button>`
+      )
+      .join("");
+
+    splitTabsEl.querySelectorAll(".split-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeSplitKey = btn.dataset.split;
+        renderSplitTabs();
+        renderGroups();
+        renderValidation();
+      });
+    });
+  }
+
+  // ---------- Rendering: unassigned pool ----------
+
+  function renderPool() {
+    const pool = getUnassignedPool().filter((c) =>
+      !poolFilterText || c.CharName.toLowerCase().includes(poolFilterText) || c.PlayerName.toLowerCase().includes(poolFilterText)
+    );
+
+    if (pool.length === 0) {
+      poolList.innerHTML = `<div class="text-muted text-sm">No unassigned characters.</div>`;
+      return;
+    }
+
+    poolList.innerHTML = pool.map((c) => playerChipHtml(c, { type: "pool" })).join("");
+    wireChipDragHandlers(poolList);
+  }
+
+  // ---------- Rendering: chip (shared between pool + slots) ----------
+
+  function playerChipHtml(character, source) {
+    const classKey = classKeyOf(character);
+    const specKey = specKeyOf(character);
+    const iconPath = getSpecIconPath(classKey, specKey) || "";
+    const isAbsent = character.Absent === true;
+    const isAlt = character.MainOrAlt === "Alt";
+    const dstShown = character.DSTEligible === true && !isAlt;
+
+    return `
+      <div class="player-chip ${isAbsent ? "chip-absent" : ""}"
+           draggable="true"
+           data-char-key="${escapeAttr(charKey(character))}"
+           data-source="${escapeAttr(JSON.stringify(source))}">
+        ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+        <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
+        <span class="chip-tags">
+          ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
+          ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
+        </span>
+      </div>
+    `;
+  }
+
+  function classKeyOf(c) { return (c.Class || "").toLowerCase(); }
+  function specKeyOf(c) { return (c.Spec || "").toLowerCase().replace(/\s+/g, ""); }
+
+  // ---------- Rendering: groups grid ----------
+
+  function renderGroups() {
+    const groups = splitsState[activeSplitKey];
+    const flatChars = groups.flat().filter(Boolean);
+    splitSummaryLine.textContent = `${flatChars.length} / ${RAID_CONFIG.maxPerSplit} players assigned`;
+
+    groupsGrid.innerHTML = groups
+      .map((group, groupIndex) => groupBoxHtml(group, groupIndex))
+      .join("");
+
+    // Wire slot drag targets
+    groups.forEach((group, groupIndex) => {
+      group.forEach((slot, slotIndex) => {
+        const slotEl = document.getElementById(slotElId(groupIndex, slotIndex));
+        wireSlotDropHandlers(slotEl, groupIndex, slotIndex);
+      });
+    });
+
+    // Wire chip drag handlers for any chips currently rendered in slots
+    wireChipDragHandlers(groupsGrid);
+  }
+
+  function slotElId(groupIndex, slotIndex) {
+    return `slot-${groupIndex}-${slotIndex}`;
+  }
+
+  function groupBoxHtml(group, groupIndex) {
+    const slotsHtml = group
+      .map((slot, slotIndex) => {
+        const inner = slot
+          ? playerChipHtml(slot, { type: "slot", splitKey: activeSplitKey, groupIndex, slotIndex })
+          : `<span class="slot-empty-label">Drop here</span>`;
+        return `<div class="group-slot ${slot ? "filled" : ""}" id="${slotElId(groupIndex, slotIndex)}">${inner}</div>`;
+      })
+      .join("");
+
+    return `
+      <div class="group-box">
+        <div class="group-header"><span>Group ${groupIndex + 1}</span></div>
+        <div class="group-slots">${slotsHtml}</div>
+        <div class="group-buffs-row">${buffIconsForGroup(group)}</div>
+      </div>
+    `;
+  }
+
+  // ---------- Buff icon row ----------
+
+  function buffIconsForGroup(group) {
+    const members = group.filter(Boolean);
+    if (members.length === 0) return "";
+
+    const covered = RAID_BUFFS.filter((buff) =>
+      buff.providers.some((provider) =>
+        members.some((member) => {
+          const classMatch = classKeyOf(member) === provider.class;
+          if (!classMatch) return false;
+          if (provider.spec) return specKeyOf(member) === provider.spec;
+          return true;
+        })
+      )
+    );
+
+    if (covered.length === 0) return `<span class="text-muted text-sm">No notable buffs</span>`;
+
+    return covered
+      .map(
+        (buff) => `
+        <img class="buff-icon"
+             src="${getBuffIconUrl(buff.icon, "small")}"
+             alt="${escapeAttr(buff.label)}"
+             title="${escapeAttr(buff.label)}"
+             onerror="this.outerHTML = '<span class=&quot;buff-icon-fallback&quot; title=&quot;${escapeAttr(buff.label)}&quot;>${escapeHtml(initials(buff.label))}</span>'">
+      `
+      )
+      .join("");
+  }
+
+  function initials(label) {
+    return label
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase();
+  }
+
+  // ---------- Drag and drop ----------
+
+  function wireChipDragHandlers(container) {
+    container.querySelectorAll(".player-chip[draggable]").forEach((chip) => {
+      chip.addEventListener("dragstart", onChipDragStart);
+      chip.addEventListener("dragend", onChipDragEnd);
+    });
+  }
+
+  function onChipDragStart(e) {
+    const chip = e.currentTarget;
+    draggedCharKey = chip.dataset.charKey;
+    dragSource = JSON.parse(chip.dataset.source);
+    chip.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", draggedCharKey); // required by some browsers for DnD to fire
+  }
+
+  function onChipDragEnd(e) {
+    e.currentTarget.classList.remove("dragging");
+    dragSource = null;
+    draggedCharKey = null;
+    document.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+  }
+
+  function wireSlotDropHandlers(slotEl, groupIndex, slotIndex) {
+    if (!slotEl) return;
+
+    slotEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      slotEl.classList.add("drag-over");
+    });
+
+    slotEl.addEventListener("dragleave", () => {
+      slotEl.classList.remove("drag-over");
+    });
+
+    slotEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      slotEl.classList.remove("drag-over");
+      handleDrop({ type: "slot", splitKey: activeSplitKey, groupIndex, slotIndex });
+    });
+  }
+
+  // Also allow dropping back onto the pool to unassign a character.
+  poolList.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    poolList.classList.add("drag-over");
+  });
+  poolList.addEventListener("dragleave", () => poolList.classList.remove("drag-over"));
+  poolList.addEventListener("drop", (e) => {
+    e.preventDefault();
+    poolList.classList.remove("drag-over");
+    handleDrop({ type: "pool" });
+  });
+
+  /**
+   * Core drop logic. Handles:
+   *  - pool -> slot (place)
+   *  - slot -> slot (move or SWAP if target occupied)
+   *  - slot -> pool (unassign)
+   *  - duplicate detection, honoring pilotMode override
+   */
+  function handleDrop(target) {
+    if (!dragSource || !draggedCharKey) return;
+
+    const draggedChar = findCharacterByKey(draggedCharKey);
+    if (!draggedChar) return;
+
+    // Duplicate check: a character can only be in ONE raid (split) at a
+    // time, regardless of who's piloting it. If this CharName already
+    // has a seat somewhere else, that's a real conflict unless someone
+    // is intentionally double-booking it (Pilot Mode).
+    if (!pilotMode) {
+      const existingLocation = findPlacementOf(draggedCharKey, dragSource);
+      if (existingLocation) {
+        const proceed = window.confirm(
+          `${draggedChar.CharName} already has a seat in ${existingLocation.splitKey}, Group ${existingLocation.groupIndex + 1}. ` +
+            `A character can only be in one raid at a time — enable Pilot Mode if this is intentional. Place anyway?`
+        );
+        if (!proceed) return;
+      }
+    }
+
+    if (target.type === "pool") {
+      removeFromSource(dragSource);
+      renderAll();
+      return;
+    }
+
+    // target.type === "slot"
+    const { splitKey, groupIndex, slotIndex } = target;
+    const targetGroup = splitsState[splitKey][groupIndex];
+    const occupant = targetGroup[slotIndex];
+
+    // Remove dragged char from its source first.
+    removeFromSource(dragSource);
+
+    // Place dragged char into target slot.
+    splitsState[splitKey][groupIndex][slotIndex] = draggedChar;
+
+    // If the target slot had someone in it, send them to wherever the
+    // dragged character came FROM (swap), or to the pool if it came
+    // from the pool itself (simple displacement).
+    if (occupant && charKey(occupant) !== draggedCharKey) {
+      if (dragSource.type === "slot") {
+        splitsState[dragSource.splitKey][dragSource.groupIndex][dragSource.slotIndex] = occupant;
+      }
+      // if dragSource was "pool", the occupant simply becomes unassigned
+      // (falls back into the pool automatically since pool = roster minus placed)
+    }
+
+    renderAll();
+  }
+
+  function findCharacterByKey(key) {
+    return roster.find((c) => charKey(c) === key) || null;
+  }
+
+  /**
+   * Returns the location object if `key` is currently placed in a slot
+   * that is NOT the same as `excludeSource` (used to detect true
+   * duplicates vs. the character's own current slot).
+   */
+  function findPlacementOf(key, excludeSource) {
+    for (const splitKey of RAID_CONFIG.splitNames) {
+      const groups = splitsState[splitKey];
+      for (let g = 0; g < groups.length; g++) {
+        for (let s = 0; s < groups[g].length; s++) {
+          const slot = groups[g][s];
+          if (slot && charKey(slot) === key) {
+            const isExcluded =
+              excludeSource &&
+              excludeSource.type === "slot" &&
+              excludeSource.splitKey === splitKey &&
+              excludeSource.groupIndex === g &&
+              excludeSource.slotIndex === s;
+            if (!isExcluded) return { splitKey, groupIndex: g, slotIndex: s };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function removeFromSource(source) {
+    if (source.type === "slot") {
+      splitsState[source.splitKey][source.groupIndex][source.slotIndex] = null;
+    }
+    // type === "pool": nothing to remove, pool is derived automatically
+  }
+
+  // ---------- Validation rendering ----------
+
+  function renderValidation() {
+    window.__unassignedPool = getUnassignedPool();
+    const result = validateSplit(splitsState[activeSplitKey]);
+
+    if (result.errors.length === 0 && result.warnings.length === 0) {
+      validationPanel.innerHTML = `<div class="alert alert-success">All checks passed for ${escapeHtml(activeSplitKey)}.</div>`;
+      return;
+    }
+
+    const errorHtml = result.errors
+      .map((e) => alertHtml(e, "error"))
+      .join("");
+    const warnHtml = result.warnings
+      .map((w) => alertHtml(w, "warn"))
+      .join("");
+
+    validationPanel.innerHTML = errorHtml + warnHtml;
+  }
+
+  function alertHtml(entry, type) {
+    return `
+      <div class="alert alert-${type}">
+        <div>
+          <div>${escapeHtml(entry.message)}</div>
+          ${entry.suggestion ? `<div class="text-muted text-sm" style="margin-top:2px;">${escapeHtml(entry.suggestion)}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------- Save ----------
+
+  async function persistSplits() {
+    const btn = document.getElementById("save-splits-btn");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+
+    try {
+      await saveSplits(splitsState);
+      lastSavedNote.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+    } catch (err) {
+      lastSavedNote.textContent = "Save failed: " + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Save Splits";
+    }
+  }
+
+  // ---------- Helpers ----------
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return String(str).replace(/"/g, "&quot;");
+  }
+})();
