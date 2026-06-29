@@ -78,7 +78,7 @@ const CLASSES = {
     armor: "Leather",
     specs: {
       balance:     { label: "Balance",     role: "dps",    icon: "druid-balance.png" },
-      feral:       { label: "Feral",       role: "flex",   icon: "druid-feral.png", flexRoles: ["tank", "dps"] },
+      feral:       { label: "Feral",       role: "flex",   icon: "druid-guardian.png", flexRoles: ["tank", "dps"] },
       restoration: { label: "Restoration", role: "healer", icon: "druid-restoration.png" }
     }
   },
