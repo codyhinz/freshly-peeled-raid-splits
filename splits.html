@@ -283,6 +283,37 @@
     .pilot-banner.active {
       display: block;
     }
+
+    .role-stat-bar {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    }
+  
+    .role-stat-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-soft);
+      font-size: 13px;
+    }
+    
+    .role-stat-chip .stat-label {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    
+    .role-stat-chip .stat-value {
+      color: var(--text-primary);
+      font-weight: 700;
+      font-size: 14px;
+    }
+    
   </style>
 </head>
 <body>
@@ -344,6 +375,8 @@
 
           <div class="split-summary-line" id="split-summary-line"></div>
 
+          <div class="role-stat-bar" id="role-stat-bar"></div>
+          
           <div class="validation-panel" id="validation-panel">
             <!-- populated by splits.js -->
           </div>
