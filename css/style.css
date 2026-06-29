@@ -290,7 +290,7 @@ select:focus-visible,
   border: 1px solid var(--border-hard);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  padding: 9px 12px;
+  padding: 9px 4px;
   font-size: 14px;
 }
 
