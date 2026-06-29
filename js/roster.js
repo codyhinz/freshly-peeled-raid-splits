@@ -8,10 +8,12 @@
   requireLogin();
 
   let roster = []; // in-memory working copy
+  let viewMode = "flat"; // "flat" | "grouped"
 
   const tableWrap = document.getElementById("roster-table-wrap");
   const countEl = document.getElementById("roster-count");
   const alertEl = document.getElementById("roster-alert");
+  const viewToggleSelect = document.getElementById("view-toggle-select");
 
   const modal = document.getElementById("char-modal");
   const modalTitle = document.getElementById("modal-title");
@@ -42,6 +44,11 @@
   document.getElementById("add-char-btn").addEventListener("click", () => openModal());
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+  viewToggleSelect.addEventListener("change", () => {
+    viewMode = viewToggleSelect.value;
+    render();
+  });
 
   fMainAlt.addEventListener("change", syncDstLockState);
   fClass.addEventListener("change", () => {
@@ -82,6 +89,14 @@
       return;
     }
 
+    if (viewMode === "grouped") {
+      renderGroupedView();
+    } else {
+      renderFlatView();
+    }
+  }
+
+  function renderFlatView() {
     const rows = roster.map((char, index) => renderRow(char, index)).join("");
 
     tableWrap.innerHTML = `
@@ -110,6 +125,90 @@
       if (editBtn) editBtn.addEventListener("click", () => openModal(char, index));
       if (delBtn) delBtn.addEventListener("click", () => deleteCharacter(index));
     });
+  }
+
+  /**
+   * Grouped-by-player card view. Each card lists one player's characters.
+   * A card is greyed out only when EVERY character belonging to that
+   * player is marked Absent — one absent alt alongside an active main
+   * shouldn't grey out the whole card, since the player is still around.
+   */
+  function renderGroupedView() {
+    // Group roster entries by PlayerName, tracking original roster
+    // indices so edit/delete buttons can still target the right row.
+    const groups = {}; // playerNameLower -> { displayName, entries: [{char, index}] }
+
+    roster.forEach((char, index) => {
+      const key = (char.PlayerName || "").trim().toLowerCase() || "(unknown)";
+      if (!groups[key]) {
+        groups[key] = { displayName: char.PlayerName || "(unknown)", entries: [] };
+      }
+      groups[key].entries.push({ char, index });
+    });
+
+    const sortedKeys = Object.keys(groups).sort((a, b) =>
+      groups[a].displayName.localeCompare(groups[b].displayName)
+    );
+
+    const cardsHtml = sortedKeys.map((key) => playerCardHtml(groups[key])).join("");
+
+    tableWrap.innerHTML = `<div class="player-cards-grid">${cardsHtml}</div>`;
+
+    // Wire up action buttons across all cards
+    roster.forEach((char, index) => {
+      const editBtn = document.getElementById(`edit-${index}`);
+      const delBtn = document.getElementById(`del-${index}`);
+      if (editBtn) editBtn.addEventListener("click", () => openModal(char, index));
+      if (delBtn) delBtn.addEventListener("click", () => deleteCharacter(index));
+    });
+  }
+
+  function playerCardHtml(group) {
+    const { displayName, entries } = group;
+    const allAbsent = entries.every(({ char }) => char.Absent === true);
+
+    const charsHtml = entries
+      .map(({ char, index }) => {
+        const classKey = char.Class ? char.Class.toLowerCase() : "";
+        const specKey = char.Spec ? char.Spec.toLowerCase().replace(/\s+/g, "") : "";
+        const iconPath = getSpecIconPath(classKey, specKey) || getClassIconPath(classKey) || "";
+        const specLabel =
+          (CLASSES[classKey] && CLASSES[classKey].specs[specKey] && CLASSES[classKey].specs[specKey].label) ||
+          char.Spec || "Unknown";
+        const classLabel = (CLASSES[classKey] && CLASSES[classKey].label) || char.Class || "Unknown";
+        const isAbsent = char.Absent === true;
+        const isAlt = char.MainOrAlt === "Alt";
+        const dstShown = char.DSTEligible === true && !isAlt;
+
+        return `
+          <div class="player-card-char-row ${isAbsent ? "char-is-absent" : ""}">
+            ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+            <div class="player-card-char-info">
+              <div class="player-card-char-name class-${classKey}">${escapeHtml(char.CharName || "")}</div>
+              <div class="player-card-char-meta">${classLabel} — ${specLabel}${isAlt ? " · Alt" : ""}</div>
+            </div>
+            <div class="player-card-char-tags">
+              ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
+              ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
+            </div>
+            <div class="player-card-char-actions">
+              <button class="btn btn-sm" id="edit-${index}" title="Edit">Edit</button>
+              <button class="btn btn-sm btn-danger" id="del-${index}" title="Remove">×</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <div class="player-card ${allAbsent ? "is-fully-absent" : ""}">
+        <div class="player-card-header">
+          <span class="player-card-name">${escapeHtml(displayName)}</span>
+          <span class="player-card-char-count">${entries.length} char${entries.length === 1 ? "" : "s"}</span>
+        </div>
+        ${charsHtml}
+      </div>
+    `;
   }
 
   function renderRow(char, index) {
