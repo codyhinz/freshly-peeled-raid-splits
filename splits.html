@@ -27,6 +27,31 @@
       margin-bottom: var(--space-sm);
     }
 
+    .pool-sort-select {
+      width: 100%;
+      margin-bottom: var(--space-sm);
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border-hard);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+
+    .pool-group-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 10px 0 2px;
+      padding-left: 2px;
+    }
+
+    .pool-group-label:first-child {
+      margin-top: 0;
+    }
+
     .pool-list {
       display: flex;
       flex-direction: column;
@@ -69,6 +94,11 @@
 
     .player-chip.chip-absent {
       opacity: 0.5;
+    }
+
+    .player-chip.chip-player-conflict {
+      border-color: var(--warn);
+      box-shadow: 0 0 0 1px var(--warn) inset;
     }
 
     .player-chip .chip-tags {
@@ -296,6 +326,11 @@
         <aside class="pool-panel panel">
           <h3 class="panel-title" style="font-size:15px;">Unassigned</h3>
           <input type="text" class="pool-search" id="pool-search" placeholder="Filter by name…">
+          <select class="pool-sort-select" id="pool-sort-select">
+            <option value="class">Sort: Class</option>
+            <option value="alpha">Sort: Alphabetical</option>
+            <option value="role">Sort: Role</option>
+          </select>
           <div class="pool-list" id="pool-list">
             <!-- populated by splits.js -->
           </div>
