@@ -36,6 +36,7 @@
   const lastSavedNote = document.getElementById("last-saved-note");
   const pilotToggle = document.getElementById("pilot-mode-toggle");
   const pilotBanner = document.getElementById("pilot-banner");
+  const roleStatBar = document.getElementById("role-stat-bar");
 
   // ---------- Init ----------
 
@@ -575,10 +576,33 @@
     // type === "pool": nothing to remove, pool is derived automatically
   }
 
+
+  function renderRoleStatBar() {
+  const characters = splitsState[activeSplitKey].flat().filter(Boolean);
+  const tankCount = characters.filter((c) => (c.Role || "").toLowerCase() === "tank").length;
+  const healerCount = characters.filter((c) => (c.Role || "").toLowerCase() === "healer").length;
+
+  const stats = [
+    { label: "Tanks", value: tankCount },
+    { label: "Healers", value: healerCount }
+  ];
+
+  roleStatBar.innerHTML = stats
+    .map(
+      (s) => `
+      <div class="role-stat-chip">
+        <span class="stat-label">${escapeHtml(s.label)}</span>
+        <span class="stat-value">${s.value}</span>
+      </div>`
+    )
+    .join("");
+  }
+  
   // ---------- Validation rendering ----------
 
   function renderValidation() {
     window.__unassignedPool = getUnassignedPool();
+    renderRoleStatBar();
     const result = validateSplit(splitsState[activeSplitKey]);
 
     if (result.errors.length === 0 && result.warnings.length === 0) {
