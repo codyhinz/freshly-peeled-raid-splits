@@ -17,6 +17,7 @@
   let activeSplitKey = RAID_CONFIG.splitNames[0];
   let pilotMode = false;
   let poolFilterText = "";
+  let poolSortMode = "class"; // "class" | "alpha" | "role"
 
   // Tracks the in-progress drag: where the dragged character came from,
   // so a drop can either move it or swap it.
@@ -27,6 +28,7 @@
 
   const poolList = document.getElementById("pool-list");
   const poolSearch = document.getElementById("pool-search");
+  const poolSortSelect = document.getElementById("pool-sort-select");
   const splitTabsEl = document.getElementById("split-tabs");
   const groupsGrid = document.getElementById("groups-grid");
   const validationPanel = document.getElementById("validation-panel");
@@ -53,6 +55,11 @@
 
   poolSearch.addEventListener("input", () => {
     poolFilterText = poolSearch.value.trim().toLowerCase();
+    renderPool();
+  });
+
+  poolSortSelect.addEventListener("change", () => {
+    poolSortMode = poolSortSelect.value;
     renderPool();
   });
 
@@ -147,6 +154,23 @@
     return roster.filter((c) => !placedKeys.has(charKey(c)));
   }
 
+  /**
+   * Set of PlayerNames (lowercased) that already have a character seated
+   * in the given split. Used to flag a player's OTHER characters as a
+   * conflict — one person can't physically play two characters in the
+   * same raid at once, but the restriction is per-split: the same
+   * person can have a different character seated in the other split.
+   */
+  function getSeatedPlayerNames(splitKey) {
+    const names = new Set();
+    splitsState[splitKey].forEach((group) => {
+      group.forEach((slot) => {
+        if (slot && slot.PlayerName) names.add(slot.PlayerName.trim().toLowerCase());
+      });
+    });
+    return names;
+  }
+
   // ---------- Rendering: top-level ----------
 
   function renderAll() {
@@ -179,8 +203,14 @@
 
   // ---------- Rendering: unassigned pool ----------
 
+  // Fixed class order, matching the order used elsewhere in the app
+  // (constants.js's CLASSES object), so "Sort: Class" groups consistently
+  // rather than relying on insertion order or alphabetical class names.
+  const CLASS_SORT_ORDER = Object.keys(CLASSES);
+  const ROLE_SORT_ORDER = ["tank", "healer", "dps"];
+
   function renderPool() {
-    const pool = getUnassignedPool().filter((c) =>
+    let pool = getUnassignedPool().filter((c) =>
       !poolFilterText || c.CharName.toLowerCase().includes(poolFilterText) || c.PlayerName.toLowerCase().includes(poolFilterText)
     );
 
@@ -189,13 +219,67 @@
       return;
     }
 
-    poolList.innerHTML = pool.map((c) => playerChipHtml(c, { type: "pool" })).join("");
+    const seatedPlayers = getSeatedPlayerNames(activeSplitKey);
+
+    if (poolSortMode === "alpha") {
+      pool = pool.slice().sort((a, b) => a.CharName.localeCompare(b.CharName));
+      poolList.innerHTML = pool
+        .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers)))
+        .join("");
+    } else {
+      // "class" or "role" — both are grouped-with-labels renders
+      const groupOrder = poolSortMode === "role" ? ROLE_SORT_ORDER : CLASS_SORT_ORDER;
+      const groupKeyFn = poolSortMode === "role" ? (c) => effectiveRoleOf(c) : (c) => classKeyOf(c);
+      const groupLabelFn = poolSortMode === "role"
+        ? (key) => (ROLES[key] && ROLES[key].label) || key
+        : (key) => (CLASSES[key] && CLASSES[key].label) || key;
+
+      const grouped = {};
+      pool.forEach((c) => {
+        const key = groupKeyFn(c);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(c);
+      });
+
+      // Sort within each group alphabetically by character name
+      Object.values(grouped).forEach((list) => list.sort((a, b) => a.CharName.localeCompare(b.CharName)));
+
+      // Render in fixed order, skipping empty groups, falling back to
+      // any keys not in the predefined order (defensive, shouldn't
+      // normally happen) appended at the end.
+      const orderedKeys = [...groupOrder, ...Object.keys(grouped).filter((k) => !groupOrder.includes(k))];
+
+      poolList.innerHTML = orderedKeys
+        .filter((key) => grouped[key] && grouped[key].length > 0)
+        .map((key) => {
+          const label = groupLabelFn(key);
+          const chips = grouped[key]
+            .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers)))
+            .join("");
+          return `<div class="pool-group-label">${escapeHtml(label)}</div>${chips}`;
+        })
+        .join("");
+    }
+
     wireChipDragHandlers(poolList);
+  }
+
+  function effectiveRoleOf(c) {
+    return (c.Role || "").toLowerCase();
+  }
+
+  /**
+   * True if this character's PLAYER already has a different character
+   * seated in the given split's seated-players set.
+   */
+  function hasPlayerConflict(character, seatedPlayerNamesSet) {
+    if (!character.PlayerName) return false;
+    return seatedPlayerNamesSet.has(character.PlayerName.trim().toLowerCase());
   }
 
   // ---------- Rendering: chip (shared between pool + slots) ----------
 
-  function playerChipHtml(character, source) {
+  function playerChipHtml(character, source, hasConflict) {
     const classKey = classKeyOf(character);
     const specKey = specKeyOf(character);
     const iconPath = getSpecIconPath(classKey, specKey) || "";
@@ -203,9 +287,14 @@
     const isAlt = character.MainOrAlt === "Alt";
     const dstShown = character.DSTEligible === true && !isAlt;
 
+    const conflictTitle = hasConflict
+      ? `title="${escapeAttr(character.PlayerName)} already has a character seated in this split"`
+      : "";
+
     return `
-      <div class="player-chip ${isAbsent ? "chip-absent" : ""}"
+      <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""}"
            draggable="true"
+           ${conflictTitle}
            data-char-key="${escapeAttr(charKey(character))}"
            data-source="${escapeAttr(JSON.stringify(source))}">
         ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
@@ -213,6 +302,7 @@
         <span class="chip-tags">
           ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
           ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
+          ${hasConflict ? '<span class="chip-mini-tag tag-warn">DUP</span>' : ""}
         </span>
       </div>
     `;
@@ -400,6 +490,30 @@
 
     // target.type === "slot"
     const { splitKey, groupIndex, slotIndex } = target;
+
+    // Player-conflict check: does this character's PLAYER already have
+    // a different character seated in the TARGET split? One person can't
+    // play two characters in the same raid. Skip the check if the
+    // dragged character is itself the one already occupying a slot for
+    // that player (e.g. just moving them within the same split).
+    if (!pilotMode && draggedChar.PlayerName) {
+      const seated = getSeatedPlayerNames(splitKey);
+      const draggedFromThisSplit = dragSource.type === "slot" && dragSource.splitKey === splitKey;
+      const playerAlreadySeatedElsewhere =
+        seated.has(draggedChar.PlayerName.trim().toLowerCase()) &&
+        !(draggedFromThisSplit && charKey(draggedChar) === charKey(
+            splitsState[splitKey][dragSource.groupIndex] ? splitsState[splitKey][dragSource.groupIndex][dragSource.slotIndex] : {}
+          ));
+
+      if (playerAlreadySeatedElsewhere) {
+        const proceed = window.confirm(
+          `${draggedChar.PlayerName} already has another character seated in ${splitKey}. ` +
+            `One person can't play two characters in the same raid — enable Pilot Mode if this is intentional. Place anyway?`
+        );
+        if (!proceed) return;
+      }
+    }
+
     const targetGroup = splitsState[splitKey][groupIndex];
     const occupant = targetGroup[slotIndex];
 
