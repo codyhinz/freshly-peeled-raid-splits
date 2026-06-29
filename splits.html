@@ -57,7 +57,24 @@
       flex-direction: column;
       gap: 6px;
     }
-
+    
+    .pool-panel::-webkit-scrollbar {
+      width: 10px;
+    }
+    
+    .pool-panel::-webkit-scrollbar-track {
+      background: var(--bg-panel);
+    }
+    
+    .pool-panel::-webkit-scrollbar-thumb {
+      background: var(--border-hard);
+      border-radius: 5px;
+    }
+    
+    .pool-panel::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+    
     .player-chip {
       display: flex;
       align-items: center;
