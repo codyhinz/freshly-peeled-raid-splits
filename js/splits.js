@@ -195,6 +195,7 @@
       btn.addEventListener("click", () => {
         activeSplitKey = btn.dataset.split;
         renderSplitTabs();
+        renderPool();
         renderGroups();
         renderValidation();
       });
