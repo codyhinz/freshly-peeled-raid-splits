@@ -58,6 +58,11 @@
     pilotBanner.classList.toggle("active", pilotMode);
   });
 
+  bothSplitsBtn.addEventListener("click", () => {
+    renderBothSplitsModal();
+    bothSplitsOverlay.classList.add("open");
+  });
+
   bothSplitsCloseBtn.addEventListener("click", closeBothSplitsModal);
 
   bothSplitsOverlay.addEventListener("click", (e) => {
