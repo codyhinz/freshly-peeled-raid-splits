@@ -37,6 +37,10 @@
   const pilotToggle = document.getElementById("pilot-mode-toggle");
   const pilotBanner = document.getElementById("pilot-banner");
   const roleStatBar = document.getElementById("role-stat-bar");
+  const bothSplitsBtn = document.getElementById("both-splits-btn");
+  const bothSplitsOverlay = document.getElementById("both-splits-overlay");
+  const bothSplitsCloseBtn = document.getElementById("both-splits-close-btn");
+  const bothSplitsBody = document.getElementById("both-splits-body");
 
   // ---------- Init ----------
 
@@ -53,6 +57,20 @@
     pilotMode = pilotToggle.checked;
     pilotBanner.classList.toggle("active", pilotMode);
   });
+
+  bothSplitsCloseBtn.addEventListener("click", closeBothSplitsModal);
+
+  bothSplitsOverlay.addEventListener("click", (e) => {
+    if (e.target === bothSplitsOverlay) closeBothSplitsModal();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && bothSplitsOverlay.classList.contains("open")) closeBothSplitsModal();
+  });
+
+  function closeBothSplitsModal() {
+    bothSplitsOverlay.classList.remove("open");
+  }
 
   poolSearch.addEventListener("input", () => {
     poolFilterText = poolSearch.value.trim().toLowerCase();
@@ -577,10 +595,15 @@
   }
 
 
+  function computeRoleStats(splitKey) {
+    const characters = splitsState[splitKey].flat().filter(Boolean);
+    const tankCount = characters.filter((c) => (c.Role || "").toLowerCase() === "tank").length;
+    const healerCount = characters.filter((c) => (c.Role || "").toLowerCase() === "healer").length;
+    return { tankCount, healerCount };
+  }
+
   function renderRoleStatBar() {
-  const characters = splitsState[activeSplitKey].flat().filter(Boolean);
-  const tankCount = characters.filter((c) => (c.Role || "").toLowerCase() === "tank").length;
-  const healerCount = characters.filter((c) => (c.Role || "").toLowerCase() === "healer").length;
+  const { tankCount, healerCount } = computeRoleStats(activeSplitKey);
 
   const stats = [
     { label: "Tanks", value: tankCount },
@@ -596,6 +619,73 @@
       </div>`
     )
     .join("");
+  }
+
+  // ---------- Rendering: Both Splits modal ----------
+
+  function renderBothSplitsModal() {
+    bothSplitsBody.innerHTML = RAID_CONFIG.splitNames
+      .map((splitKey) => bothSplitsPanelHtml(splitKey))
+      .join("");
+  }
+
+  function bothSplitsPanelHtml(splitKey) {
+    const groups = splitsState[splitKey];
+    const { tankCount, healerCount } = computeRoleStats(splitKey);
+
+    const groupsHtml = groups
+      .map((group, groupIndex) => modalGroupBoxHtml(group, groupIndex))
+      .join("");
+
+    return `
+      <div class="both-splits-panel">
+        <div class="both-splits-panel-header">
+          <h3>${escapeHtml(splitKey)}</h3>
+          <div class="role-stat-bar" style="margin-bottom:0;">
+            <div class="role-stat-chip">
+              <span class="stat-label">Tanks</span>
+              <span class="stat-value">${tankCount}</span>
+            </div>
+            <div class="role-stat-chip">
+              <span class="stat-label">Healers</span>
+              <span class="stat-value">${healerCount}</span>
+            </div>
+          </div>
+        </div>
+        <div class="both-splits-groups-grid">${groupsHtml}</div>
+      </div>
+    `;
+  }
+
+  function modalGroupBoxHtml(group, groupIndex) {
+    const slotsHtml = group
+      .map((slot) => {
+        const inner = slot ? modalChipHtml(slot) : `<span class="slot-empty-label">—</span>`;
+        return `<div class="group-slot ${slot ? "filled" : ""}">${inner}</div>`;
+      })
+      .join("");
+
+    return `
+      <div class="group-box">
+        <div class="group-header"><span>Group ${groupIndex + 1}</span></div>
+        <div class="group-slots">${slotsHtml}</div>
+        <div class="group-buffs-row">${buffIconsForGroup(group)}</div>
+      </div>
+    `;
+  }
+
+  function modalChipHtml(character) {
+    const classKey = classKeyOf(character);
+    const specKey = specKeyOf(character);
+    const iconPath = getSpecIconPath(classKey, specKey) || "";
+    const isAbsent = character.Absent === true;
+
+    return `
+      <div class="modal-chip ${isAbsent ? "chip-absent" : ""}">
+        ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+        <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
+      </div>
+    `;
   }
   
   // ---------- Validation rendering ----------
