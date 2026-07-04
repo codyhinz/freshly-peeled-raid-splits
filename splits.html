@@ -85,8 +85,48 @@
       border-radius: var(--radius-sm);
       cursor: grab;
       font-size: 13.5px;
+      position: relative;
     }
 
+    .chip-absent-toggle {
+      display: none;
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      z-index: 2;
+      border: 1px solid var(--border-hard);
+      background: var(--bg-raised);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    
+    .player-chip:hover .chip-absent-toggle {
+      display: inline-block;
+    }
+    
+    .chip-absent-toggle:hover {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      color: #fff;
+    }
+    
+    .chip-absent-toggle.is-absent {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      color: #fff;
+    }
+    
+    .chip-absent-toggle.is-absent:hover {
+      background: var(--success);
+      border-color: var(--success);
+    }
+    
     .player-chip:active {
       cursor: grabbing;
     }
