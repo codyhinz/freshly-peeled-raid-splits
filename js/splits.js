@@ -87,6 +87,9 @@
     renderPool();
   });
 
+  poolList.addEventListener("click", handleAbsentToggleClick);
+  groupsGrid.addEventListener("click", handleAbsentToggleClick);
+
   renderSplitTabs();
   load();
 
@@ -322,6 +325,13 @@
            ${conflictTitle}
            data-char-key="${escapeAttr(charKey(character))}"
            data-source="${escapeAttr(JSON.stringify(source))}">
+         <button type="button"
+                class="chip-absent-toggle ${isAbsent ? "is-absent" : ""}"
+                draggable="false"
+                data-absent-toggle="${escapeAttr(charKey(character))}"
+                title="${isAbsent ? "Mark as present" : "Mark as absent"}">
+          ${isAbsent ? "IN" : "OUT"}
+        </button>
         ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
         <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
         <span class="chip-tags">
@@ -741,6 +751,39 @@
     } finally {
       btn.disabled = false;
       btn.textContent = "Save Splits";
+    }
+  }
+
+  // ---------- Absent toggle (roster-backed, editable right from Splits) ----------
+
+  function handleAbsentToggleClick(e) {
+    const btn = e.target.closest("[data-absent-toggle]");
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+  
+    const key = btn.dataset.absentToggle;
+    const character = roster.find((c) => charKey(c) === key);
+    if (character) toggleAbsent(character);
+  }
+  
+  async function toggleAbsent(character) {
+    const previous = character.Absent === true;
+    character.Absent = !previous;
+  
+    renderPool();
+    renderGroups();
+    if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
+  
+    try {
+      await saveRoster(roster);
+      lastSavedNote.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+    } catch (err) {
+      character.Absent = previous;
+      renderPool();
+      renderGroups();
+      if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
+      alert("Failed to save absent status: " + err.message);
     }
   }
 
