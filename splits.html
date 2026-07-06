@@ -126,6 +126,38 @@
       background: var(--success);
       border-color: var(--success);
     }
+
+    .chip-remove-btn {
+      display: none;
+      position: absolute;
+      top: -7px;
+      left: -7px;
+      z-index: 2;
+      border: 1px solid var(--border-hard);
+      background: var(--bg-raised);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    
+    .player-chip:hover .chip-remove-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .chip-remove-btn:hover {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      color: #fff;
+    }
     
     .player-chip:active {
       cursor: grabbing;
