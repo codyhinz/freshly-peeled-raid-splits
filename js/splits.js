@@ -89,6 +89,7 @@
 
   poolList.addEventListener("click", handleAbsentToggleClick);
   groupsGrid.addEventListener("click", handleAbsentToggleClick);
+  groupsGrid.addEventListener("click", handleRemoveSlotClick);
 
   renderSplitTabs();
   load();
@@ -136,7 +137,7 @@
           const match = roster.find(
             (c) => (c.CharName || "").trim().toLowerCase() === (slot.CharName || "").trim().toLowerCase()
           );
-          return match || slot; // fall back to the stale snapshot if not found
+          return match || null; // fall back to the stale snapshot if not found
         }).concat(Array(RAID_CONFIG.playersPerGroup).fill(null)).slice(0, RAID_CONFIG.playersPerGroup)
       ).concat(makeBlankGroups()).slice(0, RAID_CONFIG.groupsPerSplit);
     });
@@ -319,12 +320,22 @@
       ? `title="${escapeAttr(character.PlayerName)} already has a character seated in this split"`
       : "";
 
+    const removeBtnHtml =
+      source.type === "slot"
+        ? `<button type="button"
+                class="chip-remove-btn"
+                draggable="false"
+                data-remove-slot="${source.groupIndex}:${source.slotIndex}"
+                title="Remove from split">&times;</button>`
+        : "";
+
     return `
       <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""}"
            draggable="true"
            ${conflictTitle}
            data-char-key="${escapeAttr(charKey(character))}"
            data-source="${escapeAttr(JSON.stringify(source))}">
+         ${removeBtnHtml}
          <button type="button"
                 class="chip-absent-toggle ${isAbsent ? "is-absent" : ""}"
                 draggable="false"
@@ -765,6 +776,17 @@
     const key = btn.dataset.absentToggle;
     const character = roster.find((c) => charKey(c) === key);
     if (character) toggleAbsent(character);
+  }
+
+  function handleRemoveSlotClick(e) {
+    const btn = e.target.closest("[data-remove-slot]");
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const [groupIndex, slotIndex] = btn.dataset.removeSlot.split(":").map(Number);
+    removeFromSource({ type: "slot", splitKey: activeSplitKey, groupIndex, slotIndex });
+    renderAll();
   }
   
   async function toggleAbsent(character) {
