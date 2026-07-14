@@ -351,9 +351,8 @@
 
     // Derive the effective spec/role for display without mutating the roster object.
     const classKey = classKeyOf(character);
-    const displaySpec = onOffspec ? (character.OffspecSpec || character.Spec) : character.Spec;
-    const specKey = (displaySpec || "").toLowerCase().replace(/\s+/g, "");
-    const iconPath = getSpecIconPath(classKey, specKey) || getSpecIconPath(classKey, (character.Spec || "").toLowerCase().replace(/\s+/g, "")) || "";
+    const activeSpecKey = effectiveSpecKey(character, splitKey);
+    const iconPath = getSpecIconPath(classKey, activeSpecKey) || "";
 
     const isAbsent = character.Absent === true;
     const isAlt = character.MainOrAlt === "Alt";
@@ -443,6 +442,47 @@
   function classKeyOf(c) { return (c.Class || "").toLowerCase(); }
   function specKeyOf(c) { return (c.Spec || "").toLowerCase().replace(/\s+/g, ""); }
 
+  /**
+   * Returns the spec key to use for rendering/validation for a character
+   * in a given split, accounting for offspec overrides without mutating
+   * the roster object.
+   */
+  function effectiveSpecKey(character, splitKey) {
+    if (isCharOnOffspec(character, splitKey) && character.OffspecSpec) {
+      return character.OffspecSpec.toLowerCase().replace(/\s+/g, "");
+    }
+    return specKeyOf(character);
+  }
+
+  /**
+   * Returns the role to use for validation for a character in a given split.
+   */
+  function effectiveRoleForSplit(character, splitKey) {
+    if (isCharOnOffspec(character, splitKey) && character.OffspecRole) {
+      return character.OffspecRole.toLowerCase();
+    }
+    return (character.Role || "").toLowerCase();
+  }
+
+  /**
+   * Returns a copy of the groups array where each character object is
+   * a shallow clone with Role and Spec set to their effective values
+   * for the given split. Used to pass offspec-aware data to validateSplit
+   * without mutating the real roster objects.
+   */
+  function groupsWithEffectiveSpecs(splitKey) {
+    return splitsState[splitKey].map((group) =>
+      group.map((slot) => {
+        if (!slot) return null;
+        if (!isCharOnOffspec(slot, splitKey)) return slot;
+        return Object.assign({}, slot, {
+          Spec: slot.OffspecSpec || slot.Spec,
+          Role: slot.OffspecRole || slot.Role
+        });
+      })
+    );
+  }
+
   // ---------- Rendering: groups grid ----------
 
   function renderGroups() {
@@ -500,12 +540,7 @@
         members.some((member) => {
           const classMatch = classKeyOf(member) === provider.class;
           if (!classMatch) return false;
-          // Use effective spec for this split (offspec-aware)
-          const onOffspec = isCharOnOffspec(member, splitKey);
-          const effectiveSpec = onOffspec
-            ? (member.OffspecSpec || member.Spec || "").toLowerCase().replace(/\s+/g, "")
-            : specKeyOf(member);
-          if (provider.spec) return effectiveSpec === provider.spec;
+          if (provider.spec) return effectiveSpecKey(member, splitKey) === provider.spec;
           return true;
         })
       )
@@ -804,9 +839,7 @@
   function modalChipHtml(character, splitKey) {
     const classKey = classKeyOf(character);
     const onOffspec = isCharOnOffspec(character, splitKey);
-    const displaySpec = onOffspec ? (character.OffspecSpec || character.Spec) : character.Spec;
-    const specKey = (displaySpec || "").toLowerCase().replace(/\s+/g, "");
-    const iconPath = getSpecIconPath(classKey, specKey) || getSpecIconPath(classKey, specKeyOf(character)) || "";
+    const iconPath = getSpecIconPath(classKey, effectiveSpecKey(character, splitKey)) || "";
     const isAbsent = character.Absent === true;
 
     return `
@@ -822,7 +855,7 @@
   function renderValidation() {
     window.__unassignedPool = getUnassignedPool();
     renderRoleStatBar();
-    const result = validateSplit(splitsState[activeSplitKey]);
+    const result = validateSplit(groupsWithEffectiveSpecs(activeSplitKey));
 
     if (result.errors.length === 0 && result.warnings.length === 0) {
       validationPanel.innerHTML = `<div class="alert alert-success">All checks passed for ${escapeHtml(activeSplitKey)}.</div>`;
