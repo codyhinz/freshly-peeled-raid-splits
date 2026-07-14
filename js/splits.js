@@ -345,19 +345,34 @@
       ? ((CLASSES[classKey] && CLASSES[classKey].specs[offspecKey] && CLASSES[classKey].specs[offspecKey].label) || character.OffspecSpec)
       : "";
 
+    const isPool = source.type === "pool";
+
     const specIconHtml = offspecKey
-      ? `<div class="spec-icon-dual-wrap" draggable="false">
-           <div class="spec-icon-slot ${!isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
-                title="${isOnOffspec ? "Click to swap to main spec" : "Main spec"}">
-             <img src="${isOnOffspec ? (offspecIconPath || iconPath) : iconPath}" alt="" onerror="this.style.display='none'">
-             ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap back to main spec"></button>` : ""}
-           </div>
-           <div class="spec-icon-slot ${isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
-                title="${!isOnOffspec ? "Click to swap to " + escapeAttr(offspecLabel) : "Offspec"}">
-             <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
-             ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
-           </div>
-         </div>`
+      ? isPool
+        // Pool: both icons always visible side by side
+        ? `<div class="spec-icon-dual-wrap" draggable="false">
+             <div class="spec-icon-slot ${!isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                  title="${isOnOffspec ? "Swap to main spec" : "Main spec"}">
+               <img src="${isOnOffspec ? (offspecIconPath || iconPath) : iconPath}" alt="" onerror="this.style.display='none'">
+               ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap back to main spec"></button>` : ""}
+             </div>
+             <div class="spec-icon-slot ${isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                  title="${!isOnOffspec ? "Swap to " + escapeAttr(offspecLabel) : "Offspec"}">
+               <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
+               ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
+             </div>
+           </div>`
+        // Slot: active spec icon only; offspec swap button appears on chip hover
+        : `<div class="spec-icon-swap-wrap" draggable="false">
+             <img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">
+             <button type="button"
+                     class="chip-offspec-btn chip-offspec-btn--slot"
+                     draggable="false"
+                     data-spec-swap="${escapeAttr(charKey(character))}"
+                     title="${isOnOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
+               <img src="${isOnOffspec ? (offspecIconPath || iconPath) : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
+             </button>
+           </div>`
       : (iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : "");
 
     const conflictTitle = hasConflict
