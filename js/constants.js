@@ -198,7 +198,7 @@ const VALIDATION_RULES = [
 const RAID_BUFFS = [
   {
     id: "bloodlust",
-    label: "Bloodlust / Heroism",
+    label: "Totems",
     icon: "spell_nature_bloodlust",
     category: "buff",
     providers: [{ class: "shaman" }]
