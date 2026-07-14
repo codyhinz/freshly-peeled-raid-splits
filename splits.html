@@ -193,7 +193,9 @@
       width: 100%;
       height: 100%;
       padding: 0;
-      border: 2px solid var(--accent-gold, #e6b84a);
+      border: none;
+      outline: 2px solid var(--accent-gold, #e6b84a);
+      outline-offset: 0px;
       border-radius: 3px;
       background: transparent;
       cursor: pointer;
@@ -212,14 +214,14 @@
     }
 
     .chip-offspec-btn:hover {
-      border-color: #fff;
+      outline-color: #fff;
       box-shadow: 0 0 4px rgba(255,255,255,0.4);
     }
 
     /* When a chip is on offspec, keep the swap button always visible */
     .chip-on-offspec .chip-offspec-btn {
       display: block;
-      border-color: var(--accent-gold, #e6b84a);
+      outline-color: var(--accent-gold, #e6b84a);
     }
 
     .chip-on-offspec {
