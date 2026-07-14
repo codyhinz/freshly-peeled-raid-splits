@@ -26,6 +26,7 @@
   const fSpec = document.getElementById("f-spec");
   const fRole = document.getElementById("f-role");
   const fOffspecRole = document.getElementById("f-offspec-role");
+  const fOffspecSpec = document.getElementById("f-offspec-spec");
   const fMainAlt = document.getElementById("f-main-alt");
   const fDst = document.getElementById("f-dst");
   const fAbsent = document.getElementById("f-absent");
@@ -51,12 +52,15 @@
   });
 
   fMainAlt.addEventListener("change", syncDstLockState);
+  fOffspecSpec.addEventListener("change", syncOffspecRole);
   fClass.addEventListener("change", () => {
     populateSpecOptions(fClass.value);
     populateRoleOptions(fClass.value, fSpec.value);
+    populateOffspecSpecOptions(fClass.value, fSpec.value);
   });
   fSpec.addEventListener("change", () => {
     populateRoleOptions(fClass.value, fSpec.value);
+    populateOffspecSpecOptions(fClass.value, fSpec.value);
   });
 
   form.addEventListener("submit", onSubmit);
@@ -237,7 +241,15 @@
         </td>
         <td class="player-name">${escapeHtml(char.PlayerName || "")}</td>
         <td>${roleLabel(char.Role)}</td>
-        <td>${char.OffspecRole ? roleLabel(char.OffspecRole) : "<span class=\"text-muted\">—</span>"}</td>
+        <td>${char.OffspecSpec
+          ? (() => {
+              const ck = char.Class ? char.Class.toLowerCase() : "";
+              const osk = char.OffspecSpec.toLowerCase().replace(/\s+/g, "");
+              const oip = getSpecIconPath(ck, osk) || "";
+              const osl = (CLASSES[ck] && CLASSES[ck].specs[osk] && CLASSES[ck].specs[osk].label) || char.OffspecSpec;
+              return `<div class="char-cell">${oip ? `<img class="spec-icon" src="${oip}" alt="" onerror="this.style.display='none'">` : ""}<span>${escapeHtml(osl)}</span></div>`;
+            })()
+          : "<span class=\"text-muted\">—</span>"}</td>
         <td><span class="tag ${isAlt ? "tag-alt" : "tag-main"}">${isAlt ? "Alt" : "Main"}</span></td>
         <td>${dstShown ? '<span class="tag tag-dst">DST</span>' : "<span class=\"text-muted\">—</span>"}</td>
         <td>${isAbsent ? '<span class="tag tag-absent">Absent</span>' : '<span class="text-muted">Active</span>'}</td>
@@ -264,6 +276,7 @@
       .map((key) => `<option value="${key}">${CLASSES[key].label}</option>`)
       .join("");
     populateSpecOptions(fClass.value);
+    populateOffspecSpecOptions(fClass.value, fSpec.value);
   }
 
   function populateSpecOptions(classKey) {
@@ -290,6 +303,30 @@
     }
   }
 
+  function populateOffspecSpecOptions(classKey, mainSpecKey, selectedValue) {
+    const specs = (CLASSES[classKey] && CLASSES[classKey].specs) || {};
+    const otherSpecs = Object.keys(specs).filter((key) => key !== mainSpecKey);
+    fOffspecSpec.innerHTML =
+      `<option value="">None</option>` +
+      otherSpecs.map((key) => `<option value="${key}">${specs[key].label}</option>`).join("");
+    if (selectedValue) fOffspecSpec.value = selectedValue;
+    // Auto-derive OffspecRole from selected offspec spec
+    syncOffspecRole();
+  }
+
+  function syncOffspecRole() {
+    const classKey = fClass.value;
+    const offspecKey = fOffspecSpec.value;
+    if (!offspecKey) {
+      fOffspecRole.value = "";
+      return;
+    }
+    const spec = CLASSES[classKey] && CLASSES[classKey].specs[offspecKey];
+    if (!spec) return;
+    const role = spec.role === "flex" ? (spec.flexRoles && spec.flexRoles[0]) : spec.role;
+    if (role) fOffspecRole.value = role;
+  }
+
   // ---------- Modal: open/close ----------
 
   function openModal(char, index) {
@@ -311,6 +348,8 @@
       populateRoleOptions(classKey, fSpec.value);
 
       if (char.Role) fRole.value = char.Role.toLowerCase();
+      const offspecSpecKey = char.OffspecSpec ? char.OffspecSpec.toLowerCase().replace(/\s+/g, "") : "";
+      populateOffspecSpecOptions(classKey, fSpec.value, offspecSpecKey);
       fOffspecRole.value = char.OffspecRole ? char.OffspecRole.toLowerCase() : "";
       fMainAlt.value = char.MainOrAlt || "Main";
       fDst.checked = char.DSTEligible === true;
@@ -320,6 +359,7 @@
       fCharId.value = "";
       populateSpecOptions(fClass.value);
       populateRoleOptions(fClass.value, fSpec.value);
+      populateOffspecSpecOptions(fClass.value, fSpec.value);
       fMainAlt.value = "Main";
       fDst.checked = false;
       fAbsent.checked = false;
@@ -359,6 +399,9 @@
       Spec: specLabel,
       Role: fRole.value,
       OffspecRole: fOffspecRole.value || "",
+      OffspecSpec: fOffspecSpec.value
+        ? (CLASSES[classKey].specs[fOffspecSpec.value] && CLASSES[classKey].specs[fOffspecSpec.value].label) || ""
+        : "",
       MainOrAlt: fMainAlt.value,
       DSTEligible: fMainAlt.value === "Alt" ? false : fDst.checked,
       Absent: fAbsent.checked
