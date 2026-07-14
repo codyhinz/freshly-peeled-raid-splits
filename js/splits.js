@@ -103,11 +103,28 @@
       const data = await fetchData();
       roster = data.roster || [];
       splitsState = normalizeSplitsState(data.splits);
+      applySpecOverrides(data.splits);
       lastSavedNote.textContent = data.splits ? "Loaded saved splits" : "No saved splits yet — starting fresh";
       renderAll();
     } catch (err) {
       groupsGrid.innerHTML = `<div class="alert alert-error">Failed to load: ${escapeHtml(err.message)}</div>`;
     }
+  }
+
+  function applySpecOverrides(loadedSplits) {
+    const overrides = (loadedSplits && loadedSplits.specOverrides) || {};
+    roster.forEach((c) => {
+      const key = charKey(c);
+      if (overrides[key] && c.OffspecSpec && typeof c.OffspecSpec === "string") {
+        c._origSpec = c.Spec;
+        c._origRole = c.Role;
+        c.Spec = c.OffspecSpec;
+        c.Role = c.OffspecRole || c.Role;
+        c._onOffspec = true;
+      } else {
+        c._onOffspec = false;
+      }
+    });
   }
 
   /**
@@ -329,15 +346,17 @@
       : "";
 
     const specIconHtml = offspecKey
-      ? `<div class="spec-icon-swap-wrap" draggable="false">
-           <img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">
-           <button type="button"
-                   class="chip-offspec-btn"
-                   draggable="false"
-                   data-spec-swap="${escapeAttr(charKey(character))}"
-                   title="${isOnOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
+      ? `<div class="spec-icon-dual-wrap" draggable="false">
+           <div class="spec-icon-slot ${!isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                title="${isOnOffspec ? "Click to swap to main spec" : "Main spec"}">
+             <img src="${isOnOffspec ? (offspecIconPath || iconPath) : iconPath}" alt="" onerror="this.style.display='none'">
+             ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap back to main spec"></button>` : ""}
+           </div>
+           <div class="spec-icon-slot ${isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                title="${!isOnOffspec ? "Click to swap to " + escapeAttr(offspecLabel) : "Offspec"}">
              <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
-           </button>
+             ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
+           </div>
          </div>`
       : (iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : "");
 
@@ -857,7 +876,7 @@
       character.Role = character._origRole;
       character._onOffspec = false;
     } else {
-      // Store originals and swap to offspec
+      // Store originals and swap to offspec — does NOT write to roster sheet
       character._origSpec = character.Spec;
       character._origRole = character.Role;
 
@@ -875,12 +894,22 @@
       character._onOffspec = true;
     }
 
+    // Write override into splitsState (not the roster sheet) so the
+    // real roster is never mutated and reloads correctly restore the swap.
+    if (!splitsState.specOverrides) splitsState.specOverrides = {};
+    const key = charKey(character);
+    if (character._onOffspec) {
+      splitsState.specOverrides[key] = true;
+    } else {
+      delete splitsState.specOverrides[key];
+    }
+
     renderPool();
     renderGroups();
     if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
 
     try {
-      await saveRoster(roster);
+      await saveSplits(splitsState);
       lastSavedNote.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
     } catch (err) {
       // Rollback
@@ -888,10 +917,12 @@
         character._onOffspec = true;
         character.Spec = character.OffspecSpec;
         character.Role = character.OffspecRole || character._origRole;
+        splitsState.specOverrides[key] = true;
       } else {
         character.Spec = character._origSpec;
         character.Role = character._origRole;
         character._onOffspec = false;
+        delete splitsState.specOverrides[key];
       }
       renderPool();
       renderGroups();
