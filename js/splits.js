@@ -328,15 +328,15 @@
       ? ((CLASSES[classKey] && CLASSES[classKey].specs[offspecKey] && CLASSES[classKey].specs[offspecKey].label) || character.OffspecSpec)
       : "";
 
-    const specIconHtml = offspecIconPath
+    const specIconHtml = offspecKey
       ? `<div class="spec-icon-swap-wrap" draggable="false">
            <img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">
            <button type="button"
                    class="chip-offspec-btn"
                    draggable="false"
                    data-spec-swap="${escapeAttr(charKey(character))}"
-                   title="Swap to ${isOnOffspec ? "main spec" : escapeAttr(offspecLabel)}">
-             <img src="${isOnOffspec ? iconPath : offspecIconPath}" alt="" onerror="this.style.display='none'">
+                   title="${isOnOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
+             <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
            </button>
          </div>`
       : (iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : "");
