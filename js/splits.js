@@ -388,7 +388,7 @@
            </div>`
         // Slot: active spec icon only; offspec swap button appears on chip hover
         : `<div class="spec-icon-swap-wrap" draggable="false">
-             <img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">
+             <img class="spec-icon" src="${onOffspec ? offspecIconPath || mainIconPath : mainIconPath}" alt="" onerror="this.style.display='none'">
              <button type="button"
                      class="chip-offspec-btn chip-offspec-btn--slot"
                      draggable="false"
