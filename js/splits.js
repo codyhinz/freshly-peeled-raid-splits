@@ -360,7 +360,7 @@
 
     // Offspec swap button (only when character has an OffspecSpec defined)
     const offspecKey = character.OffspecSpec && typeof character.OffspecSpec === "string"
-      ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
+      ? resolveOffspecKey(classKey, character.OffspecSpec)
       : "";
     const mainSpecKey = (character.Spec || "").toLowerCase().replace(/\s+/g, "");
     const mainIconPath = getSpecIconPath(classKey, mainSpecKey) || "";
@@ -443,13 +443,31 @@
   function specKeyOf(c) { return (c.Spec || "").toLowerCase().replace(/\s+/g, ""); }
 
   /**
+   * Resolves an OffspecSpec value (which may be stored as a display label
+   * like "Beast Mastery" or as a key like "beastmastery") to the actual
+   * key used in CLASSES, by searching the class's spec definitions.
+   */
+  function resolveOffspecKey(classKey, offspecSpecValue) {
+    if (!offspecSpecValue) return "";
+    const specs = (CLASSES[classKey] && CLASSES[classKey].specs) || {};
+    const stripped = offspecSpecValue.toLowerCase().replace(/\s+/g, "");
+    // Direct key match
+    if (specs[stripped]) return stripped;
+    // Match by label (OffspecSpec stored as label e.g. "Beast Mastery")
+    const byLabel = Object.keys(specs).find(
+      (k) => specs[k].label.toLowerCase().replace(/\s+/g, "") === stripped
+    );
+    return byLabel || stripped;
+  }
+
+  /**
    * Returns the spec key to use for rendering/validation for a character
    * in a given split, accounting for offspec overrides without mutating
    * the roster object.
    */
   function effectiveSpecKey(character, splitKey) {
     if (isCharOnOffspec(character, splitKey) && character.OffspecSpec) {
-      return character.OffspecSpec.toLowerCase().replace(/\s+/g, "");
+      return resolveOffspecKey(classKeyOf(character), character.OffspecSpec);
     }
     return specKeyOf(character);
   }
