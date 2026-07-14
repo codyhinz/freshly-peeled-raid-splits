@@ -5,6 +5,11 @@
  * Dragging onto an occupied slot SWAPS the two characters (the occupant
  * goes back to wherever the dragged character came from — either the
  * unassigned pool or another slot).
+ *
+ * Offspec overrides are stored per-split in splitsState.specOverrides:
+ *   { "Split A": { charKey: true }, "Split B": { charKey: true } }
+ * The roster objects are NEVER mutated for spec/role — rendering derives
+ * the effective spec from the override bucket for the split being drawn.
  */
 
 (function () {
@@ -13,7 +18,7 @@
   // ---------- State ----------
 
   let roster = [];               // full roster from backend
-  let splitsState = null;        // { "Split A": groups[][], "Split B": groups[][] }
+  let splitsState = null;        // { "Split A": groups[][], "Split B": groups[][], specOverrides: {...} }
   let activeSplitKey = RAID_CONFIG.splitNames[0];
   let pilotMode = false;
   let poolFilterText = "";
@@ -103,7 +108,6 @@
       const data = await fetchData();
       roster = data.roster || [];
       splitsState = normalizeSplitsState(data.splits);
-      applySpecOverrides(data.splits);
       lastSavedNote.textContent = data.splits ? "Loaded saved splits" : "No saved splits yet — starting fresh";
       renderAll();
     } catch (err) {
@@ -111,30 +115,13 @@
     }
   }
 
-  function applySpecOverrides(loadedSplits) {
-    const raw = (loadedSplits && loadedSplits.specOverrides) || {};
-    // Support new per-split bucket format { "Split A": {...}, "Split B": {...} }
-    // as well as the old flat format { charKey: true } for backwards compatibility.
-    const isNewFormat = RAID_CONFIG.splitNames.some((name) => raw[name] && typeof raw[name] === "object");
-    let overrides;
-    if (isNewFormat) {
-      // Merge all splits: a character on offspec in ANY split gets marked.
-      overrides = Object.assign({}, ...RAID_CONFIG.splitNames.map((name) => raw[name] || {}));
-    } else {
-      overrides = raw; // legacy flat format
-    }
-    roster.forEach((c) => {
-      const key = charKey(c);
-      if (overrides[key] && c.OffspecSpec && typeof c.OffspecSpec === "string") {
-        c._origSpec = c.Spec;
-        c._origRole = c.Role;
-        c.Spec = c.OffspecSpec;
-        c.Role = c.OffspecRole || c.Role;
-        c._onOffspec = true;
-      } else {
-        c._onOffspec = false;
-      }
-    });
+  /**
+   * Returns true if the character is on offspec in the given split,
+   * by reading the per-split override bucket. Never reads character._onOffspec.
+   */
+  function isCharOnOffspec(character, splitKey) {
+    const overrides = splitsState && splitsState.specOverrides && splitsState.specOverrides[splitKey];
+    return !!(overrides && overrides[charKey(character)]);
   }
 
   /**
@@ -144,12 +131,29 @@
    * than crashing the page).
    */
   function normalizeSplitsState(loaded) {
-    const blank = {};
+    const blank = { specOverrides: {} };
     RAID_CONFIG.splitNames.forEach((name) => {
       blank[name] = makeBlankGroups();
+      blank.specOverrides[name] = {};
     });
 
     if (!loaded) return blank;
+
+    // Carry over per-split override buckets, with legacy flat-format upgrade.
+    const rawOverrides = loaded.specOverrides || {};
+    const isNewFormat = RAID_CONFIG.splitNames.some(
+      (name) => rawOverrides[name] && typeof rawOverrides[name] === "object"
+    );
+    if (isNewFormat) {
+      RAID_CONFIG.splitNames.forEach((name) => {
+        blank.specOverrides[name] = rawOverrides[name] || {};
+      });
+    } else {
+      // Legacy: flat { charKey: true } — apply to all splits as best-effort migration.
+      RAID_CONFIG.splitNames.forEach((name) => {
+        blank.specOverrides[name] = Object.assign({}, rawOverrides);
+      });
+    }
 
     RAID_CONFIG.splitNames.forEach((name) => {
       const loadedGroups = loaded[name];
@@ -166,7 +170,7 @@
           const match = roster.find(
             (c) => (c.CharName || "").trim().toLowerCase() === (slot.CharName || "").trim().toLowerCase()
           );
-          return match || null; // fall back to the stale snapshot if not found
+          return match || null;
         }).concat(Array(RAID_CONFIG.playersPerGroup).fill(null)).slice(0, RAID_CONFIG.playersPerGroup)
       ).concat(makeBlankGroups()).slice(0, RAID_CONFIG.groupsPerSplit);
     });
@@ -282,7 +286,7 @@
     if (poolSortMode === "alpha") {
       pool = pool.slice().sort((a, b) => a.CharName.localeCompare(b.CharName));
       poolList.innerHTML = pool
-        .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers)))
+        .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers), activeSplitKey))
         .join("");
     } else {
       // "class" or "role" — both are grouped-with-labels renders
@@ -312,7 +316,7 @@
         .map((key) => {
           const label = groupLabelFn(key);
           const chips = grouped[key]
-            .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers)))
+            .map((c) => playerChipHtml(c, { type: "pool" }, hasPlayerConflict(c, seatedPlayers), activeSplitKey))
             .join("");
           return `<div class="pool-group-label">${escapeHtml(label)}</div>${chips}`;
         })
@@ -337,10 +341,20 @@
 
   // ---------- Rendering: chip (shared between pool + slots) ----------
 
-  function playerChipHtml(character, source, hasConflict) {
+  /**
+   * Renders a player chip. splitKey is required to look up whether this
+   * character is on offspec for the split being rendered — the roster
+   * object itself is never mutated for spec state.
+   */
+  function playerChipHtml(character, source, hasConflict, splitKey) {
+    const onOffspec = isCharOnOffspec(character, splitKey);
+
+    // Derive the effective spec/role for display without mutating the roster object.
     const classKey = classKeyOf(character);
-    const specKey = specKeyOf(character);
-    const iconPath = getSpecIconPath(classKey, specKey) || "";
+    const displaySpec = onOffspec ? (character.OffspecSpec || character.Spec) : character.Spec;
+    const specKey = (displaySpec || "").toLowerCase().replace(/\s+/g, "");
+    const iconPath = getSpecIconPath(classKey, specKey) || getSpecIconPath(classKey, (character.Spec || "").toLowerCase().replace(/\s+/g, "")) || "";
+
     const isAbsent = character.Absent === true;
     const isAlt = character.MainOrAlt === "Alt";
     const dstShown = character.DSTEligible === true && !isAlt;
@@ -349,8 +363,9 @@
     const offspecKey = character.OffspecSpec && typeof character.OffspecSpec === "string"
       ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
       : "";
+    const mainSpecKey = (character.Spec || "").toLowerCase().replace(/\s+/g, "");
+    const mainIconPath = getSpecIconPath(classKey, mainSpecKey) || "";
     const offspecIconPath = offspecKey ? (getSpecIconPath(classKey, offspecKey) || "") : "";
-    const isOnOffspec = character._onOffspec === true;
     const offspecLabel = offspecKey
       ? ((CLASSES[classKey] && CLASSES[classKey].specs[offspecKey] && CLASSES[classKey].specs[offspecKey].label) || character.OffspecSpec)
       : "";
@@ -361,15 +376,15 @@
       ? isPool
         // Pool: both icons always visible side by side
         ? `<div class="spec-icon-dual-wrap" draggable="false">
-             <div class="spec-icon-slot ${!isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
-                  title="${isOnOffspec ? "Swap to main spec" : "Main spec"}">
-               <img src="${isOnOffspec ? (offspecIconPath || iconPath) : iconPath}" alt="" onerror="this.style.display='none'">
-               ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-idx="${escapeAttr(source.splitKey || "")}" title="Swap back to main spec"></button>` : ""}
+             <div class="spec-icon-slot ${!onOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                  title="${onOffspec ? "Swap to main spec" : "Main spec"}">
+               <img src="${mainIconPath}" alt="" onerror="this.style.display='none'">
+               ${onOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-key="${escapeAttr(splitKey)}" title="Swap back to main spec"></button>` : ""}
              </div>
-             <div class="spec-icon-slot ${isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
-                  title="${!isOnOffspec ? "Swap to " + escapeAttr(offspecLabel) : "Offspec"}">
-               <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
-               ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-idx="${escapeAttr(source.splitKey || "")}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
+             <div class="spec-icon-slot ${onOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
+                  title="${!onOffspec ? "Swap to " + escapeAttr(offspecLabel) : "Offspec"}">
+               <img src="${offspecIconPath || mainIconPath}" alt="" onerror="this.style.display='none'">
+               ${!onOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-key="${escapeAttr(splitKey)}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
              </div>
            </div>`
         // Slot: active spec icon only; offspec swap button appears on chip hover
@@ -379,9 +394,9 @@
                      class="chip-offspec-btn chip-offspec-btn--slot"
                      draggable="false"
                      data-spec-swap="${escapeAttr(charKey(character))}"
-                     data-split-idx="${escapeAttr(source.splitKey || "")}"
-                     title="${isOnOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
-               <img src="${isOnOffspec ? (offspecIconPath || iconPath) : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
+                     data-split-key="${escapeAttr(splitKey)}"
+                     title="${onOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
+               <img src="${onOffspec ? mainIconPath : offspecIconPath}" alt="" onerror="this.style.display='none'">
              </button>
            </div>`
       : (iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : "");
@@ -400,7 +415,7 @@
         : "";
 
     return `
-      <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""} ${isOnOffspec ? "chip-on-offspec" : ""}"
+      <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""} ${onOffspec ? "chip-on-offspec" : ""}"
            draggable="true"
            ${conflictTitle}
            data-char-key="${escapeAttr(charKey(character))}"
@@ -416,7 +431,7 @@
         ${specIconHtml}
         <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
         <span class="chip-tags">
-          ${isOnOffspec ? `<span class="chip-mini-tag tag-offspec">${escapeHtml(offspecLabel)}</span>` : ""}
+          ${onOffspec ? `<span class="chip-mini-tag tag-offspec">${escapeHtml(offspecLabel)}</span>` : ""}
           ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
           ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
           ${hasConflict ? '<span class="chip-mini-tag tag-warn">DUP</span>' : ""}
@@ -459,7 +474,7 @@
     const slotsHtml = group
       .map((slot, slotIndex) => {
         const inner = slot
-          ? playerChipHtml(slot, { type: "slot", splitKey: activeSplitKey, groupIndex, slotIndex })
+          ? playerChipHtml(slot, { type: "slot", splitKey: activeSplitKey, groupIndex, slotIndex }, false, activeSplitKey)
           : `<span class="slot-empty-label">Drop here</span>`;
         return `<div class="group-slot ${slot ? "filled" : ""}" id="${slotElId(groupIndex, slotIndex)}">${inner}</div>`;
       })
@@ -469,14 +484,14 @@
       <div class="group-box">
         <div class="group-header"><span>Group ${groupIndex + 1}</span></div>
         <div class="group-slots">${slotsHtml}</div>
-        <div class="group-buffs-row">${buffIconsForGroup(group)}</div>
+        <div class="group-buffs-row">${buffIconsForGroup(group, activeSplitKey)}</div>
       </div>
     `;
   }
 
   // ---------- Buff icon row ----------
 
-  function buffIconsForGroup(group) {
+  function buffIconsForGroup(group, splitKey) {
     const members = group.filter(Boolean);
     if (members.length === 0) return "";
 
@@ -485,7 +500,12 @@
         members.some((member) => {
           const classMatch = classKeyOf(member) === provider.class;
           if (!classMatch) return false;
-          if (provider.spec) return specKeyOf(member) === provider.spec;
+          // Use effective spec for this split (offspec-aware)
+          const onOffspec = isCharOnOffspec(member, splitKey);
+          const effectiveSpec = onOffspec
+            ? (member.OffspecSpec || member.Spec || "").toLowerCase().replace(/\s+/g, "")
+            : specKeyOf(member);
+          if (provider.spec) return effectiveSpec === provider.spec;
           return true;
         })
       )
@@ -500,8 +520,7 @@
              src="${getBuffIconUrl(buff.icon, "small")}"
              alt="${escapeAttr(buff.label)}"
              title="${escapeAttr(buff.label)}"
-             onerror="this.outerHTML = '<span class=&quot;buff-icon-fallback&quot; title=&quot;${escapeAttr(buff.label)}&quot;>${escapeHtml(initials(buff.label))}</span>'">
-      `
+             onerror="this.outerHTML = '<span class=&quot;buff-icon-fallback&quot; title=&quot;${escapeAttr(buff.label)}&quot;>${escapeHtml(initials(buff.label))}</span>'">`
       )
       .join("");
   }
@@ -694,8 +713,19 @@
 
   function computeRoleStats(splitKey) {
     const characters = splitsState[splitKey].flat().filter(Boolean);
-    const tankCount = characters.filter((c) => (c.Role || "").toLowerCase() === "tank").length;
-    const healerCount = characters.filter((c) => (c.Role || "").toLowerCase() === "healer").length;
+    // Use effective role: check offspec override for this split
+    const tankCount = characters.filter((c) => {
+      if (isCharOnOffspec(c, splitKey)) {
+        return (c.OffspecRole || c.Role || "").toLowerCase() === "tank";
+      }
+      return (c.Role || "").toLowerCase() === "tank";
+    }).length;
+    const healerCount = characters.filter((c) => {
+      if (isCharOnOffspec(c, splitKey)) {
+        return (c.OffspecRole || c.Role || "").toLowerCase() === "healer";
+      }
+      return (c.Role || "").toLowerCase() === "healer";
+    }).length;
     return { tankCount, healerCount };
   }
 
@@ -731,7 +761,7 @@
     const { tankCount, healerCount } = computeRoleStats(splitKey);
 
     const groupsHtml = groups
-      .map((group, groupIndex) => modalGroupBoxHtml(group, groupIndex))
+      .map((group, groupIndex) => modalGroupBoxHtml(group, groupIndex, splitKey))
       .join("");
 
     return `
@@ -754,10 +784,10 @@
     `;
   }
 
-  function modalGroupBoxHtml(group, groupIndex) {
+  function modalGroupBoxHtml(group, groupIndex, splitKey) {
     const slotsHtml = group
       .map((slot) => {
-        const inner = slot ? modalChipHtml(slot) : `<span class="slot-empty-label">—</span>`;
+        const inner = slot ? modalChipHtml(slot, splitKey) : `<span class="slot-empty-label">—</span>`;
         return `<div class="group-slot ${slot ? "filled" : ""}">${inner}</div>`;
       })
       .join("");
@@ -766,19 +796,21 @@
       <div class="group-box">
         <div class="group-header"><span>Group ${groupIndex + 1}</span></div>
         <div class="group-slots">${slotsHtml}</div>
-        <div class="group-buffs-row">${buffIconsForGroup(group)}</div>
+        <div class="group-buffs-row">${buffIconsForGroup(group, splitKey)}</div>
       </div>
     `;
   }
 
-  function modalChipHtml(character) {
+  function modalChipHtml(character, splitKey) {
     const classKey = classKeyOf(character);
-    const specKey = specKeyOf(character);
-    const iconPath = getSpecIconPath(classKey, specKey) || "";
+    const onOffspec = isCharOnOffspec(character, splitKey);
+    const displaySpec = onOffspec ? (character.OffspecSpec || character.Spec) : character.Spec;
+    const specKey = (displaySpec || "").toLowerCase().replace(/\s+/g, "");
+    const iconPath = getSpecIconPath(classKey, specKey) || getSpecIconPath(classKey, specKeyOf(character)) || "";
     const isAbsent = character.Absent === true;
 
     return `
-      <div class="modal-chip ${isAbsent ? "chip-absent" : ""}">
+      <div class="modal-chip ${isAbsent ? "chip-absent" : ""} ${onOffspec ? "chip-on-offspec" : ""}">
         ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
         <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
       </div>
@@ -880,7 +912,7 @@
     }
   }
 
-  // ---------- Spec swap (roster-backed, like absent toggle) ----------
+  // ---------- Spec swap ----------
 
   function handleSpecSwapClick(e) {
     const btn = e.target.closest("[data-spec-swap]");
@@ -889,48 +921,25 @@
     e.preventDefault();
 
     const key = btn.dataset.specSwap;
-    const splitKey = btn.dataset.splitIdx || null; // empty string from pool chips → null
+    // data-split-key is set on every swap button to the split being rendered.
+    // Fall back to activeSplitKey for safety.
+    const splitKey = btn.dataset.splitKey || activeSplitKey;
     const character = roster.find((c) => charKey(c) === key);
-    if (character) toggleSpec(character, splitKey || activeSplitKey);
+    if (character) toggleSpec(character, splitKey);
   }
 
   async function toggleSpec(character, splitKey) {
-    const isOnOffspec = character._onOffspec === true;
+    // Derive current state from the override bucket — never from character object.
+    const wasOnOffspec = isCharOnOffspec(character, splitKey);
 
-    if (isOnOffspec) {
-      // Swap back to main spec
-      character.Spec = character._origSpec;
-      character.Role = character._origRole;
-      character._onOffspec = false;
-    } else {
-      // Store originals and swap to offspec — does NOT write to roster sheet
-      character._origSpec = character.Spec;
-      character._origRole = character.Role;
-
-      const classKey = classKeyOf(character);
-      const offspecKey = character.OffspecSpec && typeof character.OffspecSpec === "string"
-        ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
-        : "";
-      const offspecDef = CLASSES[classKey] && CLASSES[classKey].specs[offspecKey];
-
-      character.Spec = character.OffspecSpec;
-      character.Role = character.OffspecRole ||
-        (offspecDef
-          ? (offspecDef.role === "flex" ? (offspecDef.flexRoles && offspecDef.flexRoles[0]) : offspecDef.role)
-          : character.Role);
-      character._onOffspec = true;
-    }
-
-    // Write override into per-split bucket so Split A and Split B each
-    // track their own offspec choices independently.
     if (!splitsState.specOverrides) splitsState.specOverrides = {};
-    const bucket = splitKey || activeSplitKey;
-    if (!splitsState.specOverrides[bucket]) splitsState.specOverrides[bucket] = {};
+    if (!splitsState.specOverrides[splitKey]) splitsState.specOverrides[splitKey] = {};
+
     const key = charKey(character);
-    if (character._onOffspec) {
-      splitsState.specOverrides[bucket][key] = true;
+    if (wasOnOffspec) {
+      delete splitsState.specOverrides[splitKey][key];
     } else {
-      delete splitsState.specOverrides[bucket][key];
+      splitsState.specOverrides[splitKey][key] = true;
     }
 
     renderPool();
@@ -942,16 +951,10 @@
       lastSavedNote.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
     } catch (err) {
       // Rollback
-      if (isOnOffspec) {
-        character._onOffspec = true;
-        character.Spec = character.OffspecSpec;
-        character.Role = character.OffspecRole || character._origRole;
-        splitsState.specOverrides[bucket][key] = true;
+      if (wasOnOffspec) {
+        splitsState.specOverrides[splitKey][key] = true;
       } else {
-        character.Spec = character._origSpec;
-        character.Role = character._origRole;
-        character._onOffspec = false;
-        delete splitsState.specOverrides[bucket][key];
+        delete splitsState.specOverrides[splitKey][key];
       }
       renderPool();
       renderGroups();
