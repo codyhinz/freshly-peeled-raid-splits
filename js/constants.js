@@ -251,6 +251,27 @@ const RAID_BUFFS = [
     icon: "spell_nature_forceofnature",
     category: "buff",
     providers: [{ class: "druid", spec: "balance" }]
+  },
+  {
+    id: "battle-shout",
+    label: "Battle Shout (AP)",
+    icon: "ability_warrior_battleshout",
+    category: "buff",
+    providers: [{ class: "warrior" }]
+  },
+  {
+    id: "vampiric-touch",
+    label: "Vampiric Touch (Mana)",
+    icon: "spell_holy_stoicism",
+    category: "buff",
+    providers: [{ class: "priest", spec: "shadow" }]
+  },
+  {
+    id: "improved-sanctity-aura",
+    label: "Imp. Sanctity Aura (2% Dmg)",
+    icon: "spell_holy_auraoflight",
+    category: "buff",
+    providers: [{ class: "paladin", spec: "retribution" }]
   }
 ];
 
