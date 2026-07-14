@@ -88,7 +88,9 @@
   });
 
   poolList.addEventListener("click", handleAbsentToggleClick);
+  poolList.addEventListener("click", handleSpecSwapClick);
   groupsGrid.addEventListener("click", handleAbsentToggleClick);
+  groupsGrid.addEventListener("click", handleSpecSwapClick);
   groupsGrid.addEventListener("click", handleRemoveSlotClick);
 
   renderSplitTabs();
@@ -316,6 +318,29 @@
     const isAlt = character.MainOrAlt === "Alt";
     const dstShown = character.DSTEligible === true && !isAlt;
 
+    // Offspec swap button (only when character has an OffspecSpec defined)
+    const offspecKey = character.OffspecSpec
+      ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
+      : "";
+    const offspecIconPath = offspecKey ? (getSpecIconPath(classKey, offspecKey) || "") : "";
+    const isOnOffspec = character._onOffspec === true;
+    const offspecLabel = offspecKey
+      ? ((CLASSES[classKey] && CLASSES[classKey].specs[offspecKey] && CLASSES[classKey].specs[offspecKey].label) || character.OffspecSpec)
+      : "";
+
+    const specIconHtml = offspecIconPath
+      ? `<div class="spec-icon-swap-wrap" draggable="false">
+           <img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">
+           <button type="button"
+                   class="chip-offspec-btn"
+                   draggable="false"
+                   data-spec-swap="${escapeAttr(charKey(character))}"
+                   title="Swap to ${isOnOffspec ? "main spec" : escapeAttr(offspecLabel)}">
+             <img src="${isOnOffspec ? iconPath : offspecIconPath}" alt="" onerror="this.style.display='none'">
+           </button>
+         </div>`
+      : (iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : "");
+
     const conflictTitle = hasConflict
       ? `title="${escapeAttr(character.PlayerName)} already has a character seated in this split"`
       : "";
@@ -330,7 +355,7 @@
         : "";
 
     return `
-      <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""}"
+      <div class="player-chip ${isAbsent ? "chip-absent" : ""} ${hasConflict ? "chip-player-conflict" : ""} ${isOnOffspec ? "chip-on-offspec" : ""}"
            draggable="true"
            ${conflictTitle}
            data-char-key="${escapeAttr(charKey(character))}"
@@ -343,9 +368,10 @@
                 title="${isAbsent ? "Mark as present" : "Mark as absent"}">
           ${isAbsent ? "IN" : "OUT"}
         </button>
-        ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+        ${specIconHtml}
         <span class="chip-name class-${classKey}">${escapeHtml(character.CharName)}</span>
         <span class="chip-tags">
+          ${isOnOffspec ? `<span class="chip-mini-tag tag-offspec">${escapeHtml(offspecLabel)}</span>` : ""}
           ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
           ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
           ${hasConflict ? '<span class="chip-mini-tag tag-warn">DUP</span>' : ""}
@@ -806,6 +832,71 @@
       renderGroups();
       if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
       alert("Failed to save absent status: " + err.message);
+    }
+  }
+
+  // ---------- Spec swap (roster-backed, like absent toggle) ----------
+
+  function handleSpecSwapClick(e) {
+    const btn = e.target.closest("[data-spec-swap]");
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const key = btn.dataset.specSwap;
+    const character = roster.find((c) => charKey(c) === key);
+    if (character) toggleSpec(character);
+  }
+
+  async function toggleSpec(character) {
+    const isOnOffspec = character._onOffspec === true;
+
+    if (isOnOffspec) {
+      // Swap back to main spec
+      character.Spec = character._origSpec;
+      character.Role = character._origRole;
+      character._onOffspec = false;
+    } else {
+      // Store originals and swap to offspec
+      character._origSpec = character.Spec;
+      character._origRole = character.Role;
+
+      const classKey = classKeyOf(character);
+      const offspecKey = character.OffspecSpec
+        ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
+        : "";
+      const offspecDef = CLASSES[classKey] && CLASSES[classKey].specs[offspecKey];
+
+      character.Spec = character.OffspecSpec;
+      character.Role = character.OffspecRole ||
+        (offspecDef
+          ? (offspecDef.role === "flex" ? (offspecDef.flexRoles && offspecDef.flexRoles[0]) : offspecDef.role)
+          : character.Role);
+      character._onOffspec = true;
+    }
+
+    renderPool();
+    renderGroups();
+    if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
+
+    try {
+      await saveRoster(roster);
+      lastSavedNote.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+    } catch (err) {
+      // Rollback
+      if (isOnOffspec) {
+        character._onOffspec = true;
+        character.Spec = character.OffspecSpec;
+        character.Role = character.OffspecRole || character._origRole;
+      } else {
+        character.Spec = character._origSpec;
+        character.Role = character._origRole;
+        character._onOffspec = false;
+      }
+      renderPool();
+      renderGroups();
+      if (bothSplitsOverlay.classList.contains("open")) renderBothSplitsModal();
+      alert("Failed to save spec swap: " + err.message);
     }
   }
 
