@@ -251,13 +251,17 @@
     .chip-offspec-btn--slot img {
       width: 100%;
       height: 100%;
-      display: block;
+      display: none;
       border-radius: 1px;
     }
 
     .player-chip:hover .chip-offspec-btn--slot {
       display: block;
       outline: 2px solid var(--accent-gold, #e6b84a);
+    }
+
+    .player-chip:hover .chip-offspec-btn--slot img {
+      display: block;
     }
 
     .chip-on-offspec .chip-offspec-btn--slot {
