@@ -112,7 +112,17 @@
   }
 
   function applySpecOverrides(loadedSplits) {
-    const overrides = (loadedSplits && loadedSplits.specOverrides) || {};
+    const raw = (loadedSplits && loadedSplits.specOverrides) || {};
+    // Support new per-split bucket format { "Split A": {...}, "Split B": {...} }
+    // as well as the old flat format { charKey: true } for backwards compatibility.
+    const isNewFormat = RAID_CONFIG.splitNames.some((name) => raw[name] && typeof raw[name] === "object");
+    let overrides;
+    if (isNewFormat) {
+      // Merge all splits: a character on offspec in ANY split gets marked.
+      overrides = Object.assign({}, ...RAID_CONFIG.splitNames.map((name) => raw[name] || {}));
+    } else {
+      overrides = raw; // legacy flat format
+    }
     roster.forEach((c) => {
       const key = charKey(c);
       if (overrides[key] && c.OffspecSpec && typeof c.OffspecSpec === "string") {
@@ -354,12 +364,12 @@
              <div class="spec-icon-slot ${!isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
                   title="${isOnOffspec ? "Swap to main spec" : "Main spec"}">
                <img src="${isOnOffspec ? (offspecIconPath || iconPath) : iconPath}" alt="" onerror="this.style.display='none'">
-               ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap back to main spec"></button>` : ""}
+               ${isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-idx="${escapeAttr(source.splitKey || "")}" title="Swap back to main spec"></button>` : ""}
              </div>
              <div class="spec-icon-slot ${isOnOffspec ? "spec-slot-active" : "spec-slot-inactive"}"
                   title="${!isOnOffspec ? "Swap to " + escapeAttr(offspecLabel) : "Offspec"}">
                <img src="${isOnOffspec ? iconPath : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
-               ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
+               ${!isOnOffspec ? `<button type="button" class="chip-offspec-btn" draggable="false" data-spec-swap="${escapeAttr(charKey(character))}" data-split-idx="${escapeAttr(source.splitKey || "")}" title="Swap to ${escapeAttr(offspecLabel)}"></button>` : ""}
              </div>
            </div>`
         // Slot: active spec icon only; offspec swap button appears on chip hover
@@ -369,6 +379,7 @@
                      class="chip-offspec-btn chip-offspec-btn--slot"
                      draggable="false"
                      data-spec-swap="${escapeAttr(charKey(character))}"
+                     data-split-idx="${escapeAttr(source.splitKey || "")}"
                      title="${isOnOffspec ? "Swap back to main spec" : "Swap to " + escapeAttr(offspecLabel)}">
                <img src="${isOnOffspec ? (offspecIconPath || iconPath) : (offspecIconPath || iconPath)}" alt="" onerror="this.style.display='none'">
              </button>
@@ -878,11 +889,12 @@
     e.preventDefault();
 
     const key = btn.dataset.specSwap;
+    const splitKey = btn.dataset.splitIdx || null; // empty string from pool chips → null
     const character = roster.find((c) => charKey(c) === key);
-    if (character) toggleSpec(character);
+    if (character) toggleSpec(character, splitKey || activeSplitKey);
   }
 
-  async function toggleSpec(character) {
+  async function toggleSpec(character, splitKey) {
     const isOnOffspec = character._onOffspec === true;
 
     if (isOnOffspec) {
@@ -909,14 +921,16 @@
       character._onOffspec = true;
     }
 
-    // Write override into splitsState (not the roster sheet) so the
-    // real roster is never mutated and reloads correctly restore the swap.
+    // Write override into per-split bucket so Split A and Split B each
+    // track their own offspec choices independently.
     if (!splitsState.specOverrides) splitsState.specOverrides = {};
+    const bucket = splitKey || activeSplitKey;
+    if (!splitsState.specOverrides[bucket]) splitsState.specOverrides[bucket] = {};
     const key = charKey(character);
     if (character._onOffspec) {
-      splitsState.specOverrides[key] = true;
+      splitsState.specOverrides[bucket][key] = true;
     } else {
-      delete splitsState.specOverrides[key];
+      delete splitsState.specOverrides[bucket][key];
     }
 
     renderPool();
@@ -932,12 +946,12 @@
         character._onOffspec = true;
         character.Spec = character.OffspecSpec;
         character.Role = character.OffspecRole || character._origRole;
-        splitsState.specOverrides[key] = true;
+        splitsState.specOverrides[bucket][key] = true;
       } else {
         character.Spec = character._origSpec;
         character.Role = character._origRole;
         character._onOffspec = false;
-        delete splitsState.specOverrides[key];
+        delete splitsState.specOverrides[bucket][key];
       }
       renderPool();
       renderGroups();
