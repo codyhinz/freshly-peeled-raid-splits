@@ -241,7 +241,7 @@
         </td>
         <td class="player-name">${escapeHtml(char.PlayerName || "")}</td>
         <td>${roleLabel(char.Role)}</td>
-        <td>${char.OffspecSpec
+        <td>${char.OffspecSpec && typeof char.OffspecSpec === "string"
           ? (() => {
               const ck = char.Class ? char.Class.toLowerCase() : "";
               const osk = char.OffspecSpec.toLowerCase().replace(/\s+/g, "");
@@ -348,7 +348,7 @@
       populateRoleOptions(classKey, fSpec.value);
 
       if (char.Role) fRole.value = char.Role.toLowerCase();
-      const offspecSpecKey = char.OffspecSpec ? char.OffspecSpec.toLowerCase().replace(/\s+/g, "") : "";
+      const offspecSpecKey = char.OffspecSpec && typeof char.OffspecSpec === "string" ? char.OffspecSpec.toLowerCase().replace(/\s+/g, "") : "";
       populateOffspecSpecOptions(classKey, fSpec.value, offspecSpecKey);
       fOffspecRole.value = char.OffspecRole ? char.OffspecRole.toLowerCase() : "";
       fMainAlt.value = char.MainOrAlt || "Main";
