@@ -189,102 +189,19 @@ const VALIDATION_RULES = [
 ];
 
 // ---------- TBC RAID BUFFS & DEBUFFS ----------
+// Only group-scoped buffs are listed here — raid-wide buffs (Fortitude,
+// MotW, AI, Blessings, etc.) and boss debuffs are omitted since they
+// don't affect group composition decisions.
 // `icon` is the zamimg icon stem (loaded from wow.zamimg.com at runtime).
-// `providers` lists which class/spec combos can bring this buff, used to
-// compute which icons show up in a group's buff-summary row.
-// `category`: "buff" (raid-wide beneficial) or "debuff" (applied to boss/target).
+// `providers` lists which class/spec combos can bring this buff.
 
 const RAID_BUFFS = [
-  {
-    id: "arcane-intellect",
-    label: "Arcane Intellect",
-    icon: "spell_holy_magicalsentry",
-    category: "buff",
-    providers: [{ class: "mage" }]
-  },
-  {
-    id: "battle-shout",
-    label: "Battle Shout",
-    icon: "ability_warrior_battleshout",
-    category: "buff",
-    providers: [{ class: "warrior" }]
-  },
-  {
-    id: "blessing-of-kings",
-    label: "Blessing of Kings",
-    icon: "spell_magic_greaterblessingofkings",
-    category: "buff",
-    providers: [{ class: "paladin" }]
-  },
-  {
-    id: "blessing-of-sanctuary",
-    label: "Blessing of Sanctuary",
-    icon: "spell_holy_greaterblessingofsanctuary",
-    category: "buff",
-    providers: [{ class: "paladin", spec: "protection" }]
-  },
   {
     id: "bloodlust",
     label: "Bloodlust / Heroism",
     icon: "spell_nature_bloodlust",
     category: "buff",
     providers: [{ class: "shaman" }]
-  },
-  {
-    id: "commanding-shout",
-    label: "Commanding Shout",
-    icon: "ability_warrior_rallyingcry",
-    category: "buff",
-    providers: [{ class: "warrior" }]
-  },
-  {
-    id: "devotion-aura",
-    label: "Devotion Aura",
-    icon: "spell_holy_devotionaura",
-    category: "buff",
-    providers: [{ class: "paladin" }]
-  },
-  {
-    id: "divine-spirit",
-    label: "Divine Spirit",
-    icon: "spell_holy_divinespirit",
-    category: "buff",
-    providers: [{ class: "priest" }]
-  },
-  {
-    id: "mana-tide",
-    label: "Mana Tide Totem",
-    icon: "spell_frost_summonwaterelemental",
-    category: "buff",
-    providers: [{ class: "shaman", spec: "restoration" }]
-  },
-  {
-    id: "mark-of-the-wild",
-    label: "Mark of the Wild",
-    icon: "spell_nature_regeneration",
-    category: "buff",
-    providers: [{ class: "druid" }]
-  },
-  {
-    id: "leader-of-the-pack",
-    label: "Leader of the Pack",
-    icon: "spell_nature_unyeildingstamina",
-    category: "buff",
-    providers: [{ class: "druid", spec: "feral" }]
-  },
-  {
-    id: "power-word-fortitude",
-    label: "Power Word: Fortitude",
-    icon: "spell_holy_wordfortitude",
-    category: "buff",
-    providers: [{ class: "priest" }]
-  },
-  {
-    id: "trueshot-aura",
-    label: "Trueshot Aura",
-    icon: "ability_trueshot",
-    category: "buff",
-    providers: [{ class: "hunter", spec: "marksman" }]
   },
   {
     id: "unleashed-rage",
@@ -301,6 +218,13 @@ const RAID_BUFFS = [
     providers: [{ class: "shaman", spec: "elemental" }]
   },
   {
+    id: "mana-tide",
+    label: "Mana Tide Totem",
+    icon: "spell_frost_summonwaterelemental",
+    category: "buff",
+    providers: [{ class: "shaman", spec: "restoration" }]
+  },
+  {
     id: "ferocious-inspiration",
     label: "Ferocious Inspiration",
     icon: "ability_hunter_ferociousinspiration",
@@ -308,55 +232,25 @@ const RAID_BUFFS = [
     providers: [{ class: "hunter", spec: "beastmastery" }]
   },
   {
+    id: "trueshot-aura",
+    label: "Trueshot Aura",
+    icon: "ability_trueshot",
+    category: "buff",
+    providers: [{ class: "hunter", spec: "marksman" }]
+  },
+  {
+    id: "leader-of-the-pack",
+    label: "Leader of the Pack",
+    icon: "spell_nature_unyeildingstamina",
+    category: "buff",
+    providers: [{ class: "druid", spec: "feral" }]
+  },
+  {
     id: "moonkin-form",
-    label: "Moonkin Form (Spell Crit)",
+    label: "Moonkin Aura (5% Spell Crit)",
     icon: "spell_nature_forceofnature",
     category: "buff",
     providers: [{ class: "druid", spec: "balance" }]
-  },
-
-  // ---- Debuffs (applied to boss target, still useful to track per-group) ----
-  {
-    id: "faerie-fire",
-    label: "Improved Faerie Fire",
-    icon: "spell_nature_faeriefire",
-    category: "debuff",
-    providers: [{ class: "druid" }]
-  },
-  {
-    id: "expose-armor",
-    label: "Improved Expose Armor",
-    icon: "ability_warrior_riposte",
-    category: "debuff",
-    providers: [{ class: "rogue" }]
-  },
-  {
-    id: "demoralizing-shout",
-    label: "Improved Demoralizing Shout",
-    icon: "ability_warrior_warcry",
-    category: "debuff",
-    providers: [{ class: "warrior" }]
-  },
-  {
-    id: "winters-chill",
-    label: "Winter's Chill",
-    icon: "spell_frost_frostarmor02",
-    category: "debuff",
-    providers: [{ class: "mage", spec: "frost" }]
-  },
-  {
-    id: "improved-scorch",
-    label: "Improved Scorch / CoE",
-    icon: "spell_fire_soulburn",
-    category: "debuff",
-    providers: [{ class: "mage", spec: "fire" }, { class: "warlock" }]
-  },
-  {
-    id: "mangle",
-    label: "Mangle (Bleed Debuff)",
-    icon: "ability_druid_mangle2",
-    category: "debuff",
-    providers: [{ class: "druid", spec: "feral" }]
   }
 ];
 
