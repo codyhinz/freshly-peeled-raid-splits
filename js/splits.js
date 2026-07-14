@@ -319,7 +319,7 @@
     const dstShown = character.DSTEligible === true && !isAlt;
 
     // Offspec swap button (only when character has an OffspecSpec defined)
-    const offspecKey = character.OffspecSpec
+    const offspecKey = character.OffspecSpec && typeof character.OffspecSpec === "string"
       ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
       : "";
     const offspecIconPath = offspecKey ? (getSpecIconPath(classKey, offspecKey) || "") : "";
@@ -862,7 +862,7 @@
       character._origRole = character.Role;
 
       const classKey = classKeyOf(character);
-      const offspecKey = character.OffspecSpec
+      const offspecKey = character.OffspecSpec && typeof character.OffspecSpec === "string"
         ? character.OffspecSpec.toLowerCase().replace(/\s+/g, "")
         : "";
       const offspecDef = CLASSES[classKey] && CLASSES[classKey].specs[offspecKey];
