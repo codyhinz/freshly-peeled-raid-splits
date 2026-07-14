@@ -25,6 +25,7 @@ const ROSTER_HEADERS = [
   "Spec",
   "Role",
   "OffspecRole",
+  "OffspecSpec",
   "MainOrAlt",
   "DSTEligible",
   "Absent"
