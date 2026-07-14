@@ -82,21 +82,23 @@ function checkPassword_(submittedPassword) {
 
 function readRoster_() {
   const sheet = getSheet_(ROSTER_SHEET_NAME);
-  const range = sheet.getDataRange();
-  const values = range.getValues();
+  const lastRow = sheet.getLastRow();
 
-  if (values.length < 2) {
+  if (lastRow < 2) {
     return []; // no data rows beyond header
   }
 
-  const headers = values[0];
-  const rows = values.slice(1);
+  // Use ROSTER_HEADERS as the authoritative column order, not the sheet
+  // header row — this means adding a new column to ROSTER_HEADERS is
+  // enough; the sheet header row is just a human-readable label.
+  const numCols = ROSTER_HEADERS.length;
+  const values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
 
-  return rows
-    .filter(row => row.some(cell => cell !== "" && cell !== null)) // skip blank rows
+  return values
+    .filter(row => row.some(cell => cell !== "" && cell !== null && cell !== false))
     .map(row => {
       const obj = {};
-      headers.forEach((header, i) => {
+      ROSTER_HEADERS.forEach((header, i) => {
         obj[header] = normalizeCell_(row[i]);
       });
       return obj;
