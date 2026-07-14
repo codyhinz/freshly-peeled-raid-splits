@@ -179,25 +179,44 @@
         const specLabel =
           (CLASSES[classKey] && CLASSES[classKey].specs[specKey] && CLASSES[classKey].specs[specKey].label) ||
           char.Spec || "Unknown";
-        const classLabel = (CLASSES[classKey] && CLASSES[classKey].label) || char.Class || "Unknown";
         const isAbsent = char.Absent === true;
         const isAlt = char.MainOrAlt === "Alt";
         const dstShown = char.DSTEligible === true && !isAlt;
 
+        // Offspec
+        const hasOffspec = char.OffspecSpec && typeof char.OffspecSpec === "string";
+        const offspecKey = hasOffspec ? char.OffspecSpec.toLowerCase().replace(/\s+/g, "") : "";
+        const offspecIconPath = offspecKey ? (getSpecIconPath(classKey, offspecKey) || "") : "";
+        const offspecLabel = offspecKey
+          ? ((CLASSES[classKey] && CLASSES[classKey].specs[offspecKey] && CLASSES[classKey].specs[offspecKey].label) || char.OffspecSpec)
+          : "";
+
         return `
           <div class="player-card-char-row ${isAbsent ? "char-is-absent" : ""}">
-            ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+            <div class="player-card-char-specs">
+              <div class="player-card-spec-slot" title="${escapeHtml(specLabel)}">
+                ${iconPath ? `<img class="spec-icon" src="${iconPath}" alt="" onerror="this.style.display='none'">` : ""}
+              </div>
+              ${hasOffspec ? `
+              <div class="player-card-spec-slot player-card-offspec-slot" title="Offspec: ${escapeHtml(offspecLabel)}">
+                ${offspecIconPath ? `<img class="spec-icon" src="${offspecIconPath}" alt="" onerror="this.style.display='none'">` : ""}
+              </div>` : ""}
+            </div>
             <div class="player-card-char-info">
               <div class="player-card-char-name class-${classKey}">${escapeHtml(char.CharName || "")}</div>
-              <div class="player-card-char-meta">${classLabel} — ${specLabel}${isAlt ? " · Alt" : ""}</div>
+              <div class="player-card-char-meta">
+                ${escapeHtml(specLabel)}${hasOffspec ? ` <span class="player-card-offspec-label">/ ${escapeHtml(offspecLabel)}</span>` : ""}${isAlt ? " · <em>Alt</em>" : ""}
+              </div>
             </div>
-            <div class="player-card-char-tags">
-              ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
-              ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
-            </div>
-            <div class="player-card-char-actions">
-              <button class="btn btn-sm" id="edit-${index}" title="Edit">Edit</button>
-              <button class="btn btn-sm btn-danger" id="del-${index}" title="Remove">×</button>
+            <div class="player-card-char-side">
+              <div class="player-card-char-tags">
+                ${dstShown ? '<span class="chip-mini-tag tag-dst">DST</span>' : ""}
+                ${isAbsent ? '<span class="chip-mini-tag tag-absent">OUT</span>' : ""}
+              </div>
+              <div class="player-card-char-actions">
+                <button class="btn btn-sm" id="edit-${index}" title="Edit">Edit</button>
+                <button class="btn btn-sm btn-danger" id="del-${index}" title="Remove">×</button>
+              </div>
             </div>
           </div>
         `;
