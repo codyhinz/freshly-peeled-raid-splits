@@ -1007,12 +1007,11 @@
 
     try {
       await saveSnapshot(name, splitsState);
-      const now = new Date().toISOString();
       const idx = snapshotsList.findIndex(s => s.name === name);
       if (idx >= 0) {
-        snapshotsList[idx].savedAt = now;
+        // already exists, nothing to update
       } else {
-        snapshotsList.push({ name, savedAt: now });
+        snapshotsList.push({ name });
       }
       snapshotNameInput.value = "";
       snapshotSaveStatus.textContent = `✓ Saved "${name}"`;
