@@ -177,7 +177,9 @@ function readSnapshotList_() {
   const lastRow = sheet.getLastRow();
   if (lastRow < 1) return [];
 
-  const values = sheet.getRange(1, 1, lastRow, 1).getValues();
+  // Read display values (as shown in the cell) rather than raw values, so
+  // names Sheets auto-parsed as dates come back as the visible text.
+  const values = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
   return values
     .filter(row => row[0] !== "" && row[0] !== null)
     .map(row => ({ name: row[0].toString() }));
@@ -191,7 +193,7 @@ function saveSnapshot_(name, splitsObject) {
 
   // Check for existing row with same name to overwrite
   if (lastRow >= 1) {
-    const names = sheet.getRange(1, 1, lastRow, 1).getValues();
+    const names = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
     for (let i = 0; i < names.length; i++) {
       if (names[i][0].toString() === trimmed) {
         const row = i + 1;
@@ -204,7 +206,9 @@ function saveSnapshot_(name, splitsObject) {
 
   // New row
   const newRow = lastRow + 1;
-  sheet.getRange(newRow, 1).setValue(trimmed);
+  const nameCell = sheet.getRange(newRow, 1);
+  nameCell.setNumberFormat("@"); // force plain text so "7/16" isn't parsed as a date
+  nameCell.setValue(trimmed);
   sheet.getRange(newRow, 2).setValue(new Date().toISOString());
   sheet.getRange(newRow, 3).setValue(JSON.stringify(splitsObject));
   return { saved: true, overwritten: false };
@@ -217,10 +221,11 @@ function loadSnapshot_(name) {
   if (lastRow < 1) throw new Error("No snapshots found.");
 
   const rows = sheet.getRange(1, 1, lastRow, 3).getValues();
-  for (const row of rows) {
-    if (row[0].toString() === name) {
+  const displayNames = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (displayNames[i][0].toString() === name) {
       try {
-        return { splits: JSON.parse(row[2].toString()), savedAt: row[1].toString() };
+        return { splits: JSON.parse(rows[i][2].toString()), savedAt: rows[i][1].toString() };
       } catch (e) {
         throw new Error("Snapshot data is corrupted.");
       }
@@ -235,7 +240,7 @@ function deleteSnapshot_(name) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 1) throw new Error("No snapshots found.");
 
-  const names = sheet.getRange(1, 1, lastRow, 1).getValues();
+  const names = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
   for (let i = 0; i < names.length; i++) {
     if (names[i][0].toString() === name) {
       sheet.deleteRow(i + 1);
