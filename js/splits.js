@@ -963,7 +963,6 @@
       .slice()
       .reverse() // newest first
       .map(s => {
-        const dateStr = s.savedAt ? new Date(s.savedAt).toLocaleString() : "";
         return `
           <div class="snapshot-row" data-name="${escapeAttr(s.name)}">
             <div class="snapshot-info">
@@ -1008,9 +1007,7 @@
     try {
       await saveSnapshot(name, splitsState);
       const idx = snapshotsList.findIndex(s => s.name === name);
-      if (idx >= 0) {
-        // already exists, nothing to update
-      } else {
+      if (idx < 0) {
         snapshotsList.push({ name });
       }
       snapshotNameInput.value = "";
