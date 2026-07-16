@@ -177,10 +177,10 @@ function readSnapshotList_() {
   const lastRow = sheet.getLastRow();
   if (lastRow < 1) return [];
 
-  const values = sheet.getRange(1, 1, lastRow, 2).getValues();
+  const values = sheet.getRange(1, 1, lastRow, 1).getValues();
   return values
     .filter(row => row[0] !== "" && row[0] !== null)
-    .map(row => ({ name: row[0].toString(), savedAt: row[1].toString() }));
+    .map(row => ({ name: row[0].toString() }));
 }
 
 function saveSnapshot_(name, splitsObject) {
