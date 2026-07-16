@@ -397,6 +397,68 @@ select:focus-visible,
   clip: rect(0 0 0 0);
 }
 
+/* ---------- Snapshot list ---------- */
+
+.snapshot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.snapshot-row:last-child {
+  border-bottom: none;
+}
+
+.snapshot-row:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.04));
+}
+
+.snapshot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.snapshot-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snapshot-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.snapshot-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.snapshot-delete-btn {
+  color: var(--color-error, #e55);
+  border-color: var(--color-error, #e55);
+}
+
+.snapshot-delete-btn:hover {
+  background: var(--color-error, #e55);
+  color: #fff;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
