@@ -19,6 +19,7 @@
 
   let roster = [];               // full roster from backend
   let splitsState = null;        // { "Split A": groups[][], "Split B": groups[][], specOverrides: {...} }
+  let snapshotsList = [];        // [{ name, savedAt }, ...]
   let activeSplitKey = RAID_CONFIG.splitNames[0];
   let pilotMode = false;
   let poolFilterText = "";
@@ -46,6 +47,13 @@
   const bothSplitsOverlay = document.getElementById("both-splits-overlay");
   const bothSplitsCloseBtn = document.getElementById("both-splits-close-btn");
   const bothSplitsBody = document.getElementById("both-splits-body");
+  const snapshotsBtn = document.getElementById("snapshots-btn");
+  const snapshotsOverlay = document.getElementById("snapshots-overlay");
+  const snapshotsCloseBtn = document.getElementById("snapshots-close-btn");
+  const snapshotNameInput = document.getElementById("snapshot-name-input");
+  const snapshotSaveBtn = document.getElementById("snapshot-save-btn");
+  const snapshotSaveStatus = document.getElementById("snapshot-save-status");
+  const snapshotList = document.getElementById("snapshot-list");
 
   // ---------- Init ----------
 
@@ -69,6 +77,16 @@
   });
 
   bothSplitsCloseBtn.addEventListener("click", closeBothSplitsModal);
+
+  snapshotsBtn.addEventListener("click", openSnapshotsModal);
+  snapshotsCloseBtn.addEventListener("click", closeSnapshotsModal);
+  snapshotsOverlay.addEventListener("click", (e) => {
+    if (e.target === snapshotsOverlay) closeSnapshotsModal();
+  });
+  snapshotSaveBtn.addEventListener("click", handleSnapshotSave);
+  snapshotNameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleSnapshotSave();
+  });
 
   bothSplitsOverlay.addEventListener("click", (e) => {
     if (e.target === bothSplitsOverlay) closeBothSplitsModal();
@@ -108,6 +126,7 @@
       const data = await fetchData();
       roster = data.roster || [];
       splitsState = normalizeSplitsState(data.splits);
+      snapshotsList = data.snapshots || [];
       lastSavedNote.textContent = data.splits ? "Loaded saved splits" : "No saved splits yet — starting fresh";
       renderAll();
     } catch (err) {
@@ -917,6 +936,139 @@
       btn.disabled = false;
       btn.textContent = "Save Splits";
     }
+  }
+
+  // ---------- Snapshots ----------
+
+  function openSnapshotsModal() {
+    renderSnapshotList();
+    snapshotsOverlay.classList.add("open");
+    snapshotNameInput.focus();
+  }
+
+  function closeSnapshotsModal() {
+    snapshotsOverlay.classList.remove("open");
+    snapshotSaveStatus.textContent = "";
+    snapshotNameInput.value = "";
+  }
+
+  function renderSnapshotList() {
+    if (snapshotsList.length === 0) {
+      snapshotList.innerHTML = `<p style="padding:12px 20px; color:var(--text-muted); font-size:13px;">No snapshots saved yet.</p>`;
+      return;
+    }
+
+    snapshotList.innerHTML = snapshotsList
+      .slice()
+      .reverse() // newest first
+      .map(s => {
+        const dateStr = s.savedAt ? new Date(s.savedAt).toLocaleString() : "";
+        return `
+          <div class="snapshot-row" data-name="${escapeAttr(s.name)}">
+            <div class="snapshot-info">
+              <span class="snapshot-name">${escapeHtml(s.name)}</span>
+              ${dateStr ? `<span class="snapshot-date">${dateStr}</span>` : ""}
+            </div>
+            <div class="snapshot-actions">
+              <button class="btn btn-sm snapshot-load-btn" data-action="load" data-name="${escapeAttr(s.name)}">Load</button>
+              <button class="btn btn-sm snapshot-delete-btn" data-action="delete" data-name="${escapeAttr(s.name)}">Delete</button>
+            </div>
+          </div>`;
+      })
+      .join("");
+
+    snapshotList.addEventListener("click", handleSnapshotListClick, { once: true });
+    // Re-attach each render since we use {once:true}
+    snapshotList.onclick = handleSnapshotListClick;
+  }
+
+  function handleSnapshotListClick(e) {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const name = btn.dataset.name;
+    if (action === "load") handleSnapshotLoad(name);
+    if (action === "delete") handleSnapshotDelete(name);
+  }
+
+  async function handleSnapshotSave() {
+    const name = snapshotNameInput.value.trim();
+    if (!name) {
+      snapshotSaveStatus.textContent = "Please enter a name for this snapshot.";
+      snapshotSaveStatus.style.color = "var(--color-error, #e55)";
+      return;
+    }
+
+    const existing = snapshotsList.find(s => s.name === name);
+    if (existing) {
+      const ok = confirm(`A snapshot named "${name}" already exists. Overwrite it?`);
+      if (!ok) return;
+    }
+
+    snapshotSaveBtn.disabled = true;
+    snapshotSaveBtn.textContent = "Saving…";
+    snapshotSaveStatus.textContent = "";
+
+    try {
+      await saveSnapshot(name, splitsState);
+      const now = new Date().toISOString();
+      const idx = snapshotsList.findIndex(s => s.name === name);
+      if (idx >= 0) {
+        snapshotsList[idx].savedAt = now;
+      } else {
+        snapshotsList.push({ name, savedAt: now });
+      }
+      snapshotNameInput.value = "";
+      snapshotSaveStatus.textContent = `✓ Saved "${name}"`;
+      snapshotSaveStatus.style.color = "var(--color-success, #5a5)";
+      renderSnapshotList();
+    } catch (err) {
+      snapshotSaveStatus.textContent = "Save failed: " + err.message;
+      snapshotSaveStatus.style.color = "var(--color-error, #e55)";
+    } finally {
+      snapshotSaveBtn.disabled = false;
+      snapshotSaveBtn.textContent = "Save Current";
+    }
+  }
+
+  async function handleSnapshotLoad(name) {
+    const ok = confirm(`Load snapshot "${name}"? Your current unsaved splits will be replaced.`);
+    if (!ok) return;
+
+    const row = snapshotList.querySelector(`[data-name="${escapeAttr(name)}"] .snapshot-load-btn`);
+    if (row) { row.disabled = true; row.textContent = "Loading…"; }
+
+    try {
+      const result = await loadSnapshot(name);
+      splitsState = normalizeSplitsState(result.splits);
+      renderAll();
+      lastSavedNote.textContent = `Loaded snapshot: ${name}`;
+      closeSnapshotsModal();
+    } catch (err) {
+      alert("Failed to load snapshot: " + err.message);
+      if (row) { row.disabled = false; row.textContent = "Load"; }
+    }
+  }
+
+  async function handleSnapshotDelete(name) {
+    const ok = confirm(`Delete snapshot "${name}"? This cannot be undone.`);
+    if (!ok) return;
+
+    const row = snapshotList.querySelector(`[data-name="${escapeAttr(name)}"] .snapshot-delete-btn`);
+    if (row) { row.disabled = true; row.textContent = "Deleting…"; }
+
+    try {
+      await deleteSnapshot(name);
+      snapshotsList = snapshotsList.filter(s => s.name !== name);
+      renderSnapshotList();
+    } catch (err) {
+      alert("Failed to delete snapshot: " + err.message);
+      if (row) { row.disabled = false; row.textContent = "Delete"; }
+    }
+  }
+
+  function escapeAttr(str) {
+    return String(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   // ---------- Absent toggle (roster-backed, editable right from Splits) ----------
