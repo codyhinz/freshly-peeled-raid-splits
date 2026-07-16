@@ -98,6 +98,18 @@ async function saveSplits(splitsObject) {
   return postData("saveSplits", splitsObject);
 }
 
+async function saveSnapshot(name, splitsObject) {
+  return postData("saveSnapshot", { name, splits: splitsObject });
+}
+
+async function loadSnapshot(name) {
+  return postData("loadSnapshot", { name });
+}
+
+async function deleteSnapshot(name) {
+  return postData("deleteSnapshot", { name });
+}
+
 /**
  * Attempt a login: store the URL + password, then verify both work
  * before declaring success.
