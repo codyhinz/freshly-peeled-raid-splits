@@ -1040,7 +1040,7 @@
 
     try {
       const result = await loadSnapshot(name);
-      splitsState = normalizeSplitsState(result.splits);
+      splitsState = normalizeSplitsState(result.result.splits);
       renderAll();
       lastSavedNote.textContent = `Loaded snapshot: ${name}`;
       closeSnapshotsModal();
