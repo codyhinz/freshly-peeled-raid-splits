@@ -16,6 +16,7 @@
 const ROSTER_SHEET_NAME = "Roster";
 const SPLITS_SHEET_NAME = "Splits";
 const CONFIG_SHEET_NAME = "Config";
+const SNAPSHOTS_SHEET_NAME = "Snapshots";
 
 // Roster column order — must match the header row in the Roster sheet exactly.
 const ROSTER_HEADERS = [
@@ -37,7 +38,8 @@ function doGet(e) {
   try {
     const roster = readRoster_();
     const splits = readSplits_();
-    return jsonResponse_({ status: "ok", roster: roster, splits: splits });
+    const snapshots = readSnapshotList_();
+    return jsonResponse_({ status: "ok", roster: roster, splits: splits, snapshots: snapshots });
   } catch (err) {
     return jsonResponse_({ status: "error", message: err.message });
   }
@@ -58,6 +60,15 @@ function doPost(e) {
         break;
       case "saveSplits":
         result = saveSplits_(payload.data);
+        break;
+      case "saveSnapshot":
+        result = saveSnapshot_(payload.data.name, payload.data.splits);
+        break;
+      case "loadSnapshot":
+        result = loadSnapshot_(payload.data.name);
+        break;
+      case "deleteSnapshot":
+        result = deleteSnapshot_(payload.data.name);
         break;
       default:
         return jsonResponse_({ status: "error", message: "Unknown action: " + payload.action });
@@ -155,6 +166,83 @@ function saveSplits_(splitsObject) {
   sheet.getRange("A1").setValue("SplitsData");
   sheet.getRange("B1").setValue(JSON.stringify(splitsObject));
   return { saved: true };
+}
+
+// ---------- SNAPSHOTS READ/WRITE ----------
+// Each snapshot is one row in the Snapshots sheet:
+//   A = snapshot name (unique key), B = ISO timestamp, C = JSON blob
+
+function readSnapshotList_() {
+  const sheet = getSheet_(SNAPSHOTS_SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) return [];
+
+  const values = sheet.getRange(1, 1, lastRow, 2).getValues();
+  return values
+    .filter(row => row[0] !== "" && row[0] !== null)
+    .map(row => ({ name: row[0].toString(), savedAt: row[1].toString() }));
+}
+
+function saveSnapshot_(name, splitsObject) {
+  if (!name || !name.trim()) throw new Error("Snapshot name is required.");
+  const sheet = getSheet_(SNAPSHOTS_SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  const trimmed = name.trim();
+
+  // Check for existing row with same name to overwrite
+  if (lastRow >= 1) {
+    const names = sheet.getRange(1, 1, lastRow, 1).getValues();
+    for (let i = 0; i < names.length; i++) {
+      if (names[i][0].toString() === trimmed) {
+        const row = i + 1;
+        sheet.getRange(row, 2).setValue(new Date().toISOString());
+        sheet.getRange(row, 3).setValue(JSON.stringify(splitsObject));
+        return { saved: true, overwritten: true };
+      }
+    }
+  }
+
+  // New row
+  const newRow = lastRow + 1;
+  sheet.getRange(newRow, 1).setValue(trimmed);
+  sheet.getRange(newRow, 2).setValue(new Date().toISOString());
+  sheet.getRange(newRow, 3).setValue(JSON.stringify(splitsObject));
+  return { saved: true, overwritten: false };
+}
+
+function loadSnapshot_(name) {
+  if (!name) throw new Error("Snapshot name is required.");
+  const sheet = getSheet_(SNAPSHOTS_SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) throw new Error("No snapshots found.");
+
+  const rows = sheet.getRange(1, 1, lastRow, 3).getValues();
+  for (const row of rows) {
+    if (row[0].toString() === name) {
+      try {
+        return { splits: JSON.parse(row[2].toString()), savedAt: row[1].toString() };
+      } catch (e) {
+        throw new Error("Snapshot data is corrupted.");
+      }
+    }
+  }
+  throw new Error("Snapshot not found: " + name);
+}
+
+function deleteSnapshot_(name) {
+  if (!name) throw new Error("Snapshot name is required.");
+  const sheet = getSheet_(SNAPSHOTS_SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) throw new Error("No snapshots found.");
+
+  const names = sheet.getRange(1, 1, lastRow, 1).getValues();
+  for (let i = 0; i < names.length; i++) {
+    if (names[i][0].toString() === name) {
+      sheet.deleteRow(i + 1);
+      return { deleted: true };
+    }
+  }
+  throw new Error("Snapshot not found: " + name);
 }
 
 // ---------- HELPERS ----------
