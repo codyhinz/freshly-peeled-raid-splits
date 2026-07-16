@@ -968,7 +968,6 @@
           <div class="snapshot-row" data-name="${escapeAttr(s.name)}">
             <div class="snapshot-info">
               <span class="snapshot-name">${escapeHtml(s.name)}</span>
-              ${dateStr ? `<span class="snapshot-date">${dateStr}</span>` : ""}
             </div>
             <div class="snapshot-actions">
               <button class="btn btn-sm snapshot-load-btn" data-action="load" data-name="${escapeAttr(s.name)}">Load</button>
