@@ -87,6 +87,7 @@
   snapshotNameInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleSnapshotSave();
   });
+  snapshotList.addEventListener("click", handleSnapshotListClick);
 
   bothSplitsOverlay.addEventListener("click", (e) => {
     if (e.target === bothSplitsOverlay) closeBothSplitsModal();
@@ -976,10 +977,6 @@
           </div>`;
       })
       .join("");
-
-    snapshotList.addEventListener("click", handleSnapshotListClick, { once: true });
-    // Re-attach each render since we use {once:true}
-    snapshotList.onclick = handleSnapshotListClick;
   }
 
   function handleSnapshotListClick(e) {
